@@ -1,0 +1,13 @@
+# Project
+/datasets/*
+!/datasets/dir.txt
+
+/models/*
+!/models/dir.txt
+
+/logs/*
+!/logs/dir.txt
+
+
+# Vim
+*.sw[po]
