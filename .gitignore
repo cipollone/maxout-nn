@@ -8,6 +8,8 @@
 /logs/*
 !/logs/dir.txt
 
+# Python
+__pycache__/
 
 # Vim
 *.sw[po]
