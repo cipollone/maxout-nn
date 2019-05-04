@@ -3,8 +3,8 @@ NN for the CIFAR dataset.
 '''
 
 
-'''\
-Adds the model to the current tf.Graph.
-'''
 def model():
+  '''\
+  Adds the model to the current tf.Graph.
+  '''
   pass
