@@ -65,7 +65,8 @@ def placeholder(dataset):
     A placeholder that has the correct size
   '''
   if dataset == 'example':
-    return tf.placeholder(tf.float32, shape=(None,)+iris_test_x[1].shape)
+    return tf.placeholder(tf.float32, shape=(None,)+iris_test_x[1].shape,
+        name='input_features')
 
 
 # TODO: demo dataset, written here for simplicity. Delete also this stuff.

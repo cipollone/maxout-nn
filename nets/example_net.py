@@ -15,5 +15,7 @@ def model(data):
     array of shape (batch_size, classes) with probability of each class
   '''
 
-  # Get or define weights
-  return 3*data
+  w = tf.get_variable(name='w', initializer=tf.constant(3.0))
+  out = w*data
+
+  return out
