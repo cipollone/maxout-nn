@@ -14,7 +14,7 @@ import shutil
 import time
 import tensorflow as tf
 
-from graphs import MaxoutGraph
+from graphs import CGraph
 import data
 
 
@@ -35,13 +35,13 @@ def training(dataset):
   clear_saved(dataset)
 
   # Instantiate the graph
-  graphs = MaxoutGraph(dataset)
+  graph = CGraph(dataset)
 
   # Use it
-  with graphs.training_graph.as_default():
+  with graph.graph.as_default():
     
     # Save the graph
-    logs_writer = tf.summary.FileWriter('logs', graphs.training_graph)
+    logs_writer = tf.summary.FileWriter('logs', graph.graph)
     logs_writer.flush()
 
     # Create a Saver
@@ -55,8 +55,8 @@ def training(dataset):
 
       # Run
       (features_train, labels_train), _ = data.load(dataset)
-      ret = sess.run(graphs.output,
-          feed_dict={graphs.input: features_train[0:2]})
+      ret = sess.run(graph.output,
+          feed_dict={graph.input: features_train[0:8]})
       print(ret)
 
       # Save parameters
@@ -78,11 +78,10 @@ def predict(dataset):
   time.sleep(1)
 
   # Instantiate the graph
-  graphs = MaxoutGraph(dataset) # TODO: the graphs shouldn't be the same as
-                                # in trainig
+  graph = CGraph(dataset)
 
   # Use it
-  with graphs.training_graph.as_default():
+  with graph.graph.as_default():
     
     # Create a Saver
     saver = tf.train.Saver()
@@ -96,8 +95,8 @@ def predict(dataset):
 
       # Run
       (features_train, labels_train), _ = data.load(dataset)
-      ret = sess.run(graphs.output,
-          feed_dict={graphs.input: features_train[0:2]})
+      ret = sess.run(graph.output,
+          feed_dict={graph.input: features_train[0:8]})
       print(ret)
 
 

@@ -38,6 +38,7 @@ Dataset loading module. Dataset suppported MNIST ans CIFAR-10.
 import numpy as np
 import tensorflow as tf
 
+# TODO: use iterators to avoid bottlenecks
 
 def load(dataset):
   '''\
@@ -57,18 +58,20 @@ def load(dataset):
 
 def placeholder(dataset):
   '''\
-  Returns a tf.placeholder that has the size of the input features.
+  Returns a tf.placeholder for the input and output tensors for each dataset.
   The first dimension represents the batch size and it's left unspecified.
 
   Args:
     dataset: name of the dataset to load.
 
   Returns:
-    A placeholder that has the correct size
+    (input_placeholder, output_placeholder)
   '''
   if dataset == 'example':
-    return tf.placeholder(tf.float32, shape=(None,)+iris_test_x[1].shape,
+    input_ph = tf.placeholder(tf.float32, shape=(None,)+iris_test_x.shape[1:],
         name='input_features')
+    output_ph = tf.placeholder(tf.int32, shape=(None,), name='output_labels')
+    return (input_ph, output_ph)
   else:
     raise ValueError(dataset + ' is not a valid dataset')
 
