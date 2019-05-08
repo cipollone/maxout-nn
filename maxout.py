@@ -10,6 +10,7 @@ networks.
 
 import os
 import argparse
+import shutil
 import time
 import tensorflow as tf
 
@@ -17,19 +18,21 @@ from graphs import MaxoutGraph
 import data
 
 
-def training(dataset, logdir):
+def training(dataset):
   '''\
   Training function. Creates the training tf Graph and starts training. Saves
   checkpoints in models/<dataset>/model
 
   Args:
-    logdir: a new path where tensorboard events are saved
     dataset: The name of the dataset to use. Each dataset has a different model
   '''
 
   # Prints
   print('Training')
   time.sleep(1)
+
+  # Clear old logs and models
+  clear_saved(dataset)
 
   # Instantiate the graph
   graphs = MaxoutGraph(dataset)
@@ -38,11 +41,11 @@ def training(dataset, logdir):
   with graphs.training_graph.as_default():
     
     # Save the graph
-    logs_writer = tf.summary.FileWriter(logdir, graphs.training_graph)
+    logs_writer = tf.summary.FileWriter('logs', graphs.training_graph)
     logs_writer.flush()
 
     # Create a Saver
-    saver = tf.train.Saver(max_to_keep=1)
+    saver = tf.train.Saver()
 
     # Run
     with tf.Session() as sess:
@@ -52,7 +55,8 @@ def training(dataset, logdir):
 
       # Run
       (features_train, labels_train), _ = data.load(dataset)
-      ret = sess.run(graphs.output, feed_dict={graphs.input: features_train})
+      ret = sess.run(graphs.output,
+          feed_dict={graphs.input: features_train[0:2]})
       print(ret)
 
       # Save parameters
@@ -92,7 +96,8 @@ def predict(dataset):
 
       # Run
       (features_train, labels_train), _ = data.load(dataset)
-      ret = sess.run(graphs.output, feed_dict={graphs.input: features_train})
+      ret = sess.run(graphs.output,
+          feed_dict={graphs.input: features_train[0:2]})
       print(ret)
 
 
@@ -104,10 +109,25 @@ def debug():
   # Prints
   print('Debug')
 
-  # Testing TF import
-  hello = tf.constant('Hello, TensorFlow!')
-  with tf.Session() as sess:
-    print(sess.run(hello))
+
+def clear_saved(dataset):
+  '''\
+  Removes all files from 'models/<dataset>/' and 'logs/'.
+
+  Args:
+    dataset: The name of the dataset to use.
+  '''
+  
+  # List
+  model = os.path.join('models', dataset)
+  logs = [os.path.join('logs',l) for l in os.listdir('logs')
+      if 'dir.txt' not in l]
+
+  # Rm
+  if os.path.exists(model):
+    shutil.rmtree(model)
+  for f in logs:
+    os.remove(f)
 
 
 def main():
@@ -122,23 +142,16 @@ def main():
       the Maxout network')
   parser.add_argument('op', choices=['train','predict','debug'],
       help='What to do with the net')
-  parser.add_argument('--load', '-l', action='store_true',
-      help='If present, the parameters from last saved checkpoints are loaded')
+  parser.add_argument('-d', '--dataset', default='example',
+      choices=['example'], help='Which dataset to load')
 
   args = parser.parse_args()
 
-  # Select log directory. New with increasing numbers
-  logsdir = 'logs'
-  logs = os.listdir(logsdir)
-  logs = [int(d) for d in logs if d.isdigit()]
-  if len(logs) == 0: logs.append(0)
-  logdir = os.path.join(logsdir,str(max(logs) + 1))
-
   # Go
   if args.op == 'train':
-    training('example', logdir)
+    training(args.dataset)
   elif args.op == 'predict':
-    predict('example')
+    predict(args.dataset)
   elif args.op == 'debug':
     debug()
 

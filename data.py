@@ -51,6 +51,8 @@ def load(dataset):
   '''
   if dataset == 'example':
     return ((iris_train_x, iris_train_y), (iris_test_x, iris_test_y))
+  else:
+    raise ValueError(dataset + ' is not a valid dataset')
 
 
 def placeholder(dataset):
@@ -67,6 +69,8 @@ def placeholder(dataset):
   if dataset == 'example':
     return tf.placeholder(tf.float32, shape=(None,)+iris_test_x[1].shape,
         name='input_features')
+  else:
+    raise ValueError(dataset + ' is not a valid dataset')
 
 
 # TODO: demo dataset, written here for simplicity. Delete also this stuff.
