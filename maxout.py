@@ -17,6 +17,14 @@ import tensorflow as tf
 from graphs import CGraph
 import data
 
+# TODO: move this to main
+learning_rate = 0.05
+n_steps = 200
+log_every = 20
+
+# TODO: add option to continue training
+# TODO: subs delays with confirmations
+
 
 def training(dataset):
   '''\
@@ -39,28 +47,52 @@ def training(dataset):
 
   # Use it
   with graph.graph.as_default():
+
+    # Add the optimizer
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+    minimize = optimizer.minimize(graph.loss)
+
+    # Init
+    init = tf.global_variables_initializer()
     
-    # Save the graph
+    # Logger
     logs_writer = tf.summary.FileWriter('logs', graph.graph)
     logs_writer.flush()
 
-    # Create a Saver
-    saver = tf.train.Saver()
+    # Saver
+    saver = tf.train.Saver(max_to_keep=3)
 
     # Run
     with tf.Session() as sess:
 
-      # Initialize parameters
-      sess.run(tf.global_variables_initializer())
+      # Initialize variables
+      sess.run(init)
 
-      # Run
+      # Load dataset once
       (features_train, labels_train), _ = data.load(dataset)
-      ret = sess.run(graph.output,
-          feed_dict={graph.input: features_train[0:8]})
-      print(ret)
 
-      # Save parameters
-      saver.save(sess, os.path.join('models',dataset,'model'))
+      # Train
+      for step in range(1, n_steps+1):
+
+        # Minimize
+        sess.run( minimize, feed_dict={
+              graph.input_ph: features_train,
+              graph.labels_ph: labels_train })
+
+        # Every log_every steps
+        if step % log_every == 0:
+
+          # Test
+          loss = sess.run(graph.loss, feed_dict={
+                graph.input_ph: features_train,
+                graph.labels_ph: labels_train })
+
+          # Log
+          print('Step: ' + str(step) + ', loss: ' + str(loss))
+
+          # Save parameters
+          model_name = 'model-step{}'.format(step)
+          saver.save(sess, os.path.join('models',dataset,model_name))
 
 
 def predict(dataset):
@@ -90,14 +122,17 @@ def predict(dataset):
     with tf.Session() as sess:
 
       # Restore parameters
-      checkpoint = tf.train.latest_checkpoint(os.path.join('models',dataset))
+      checkpoint = tf.train.latest_checkpoint(
+          checkpoint_dir=os.path.join('models',dataset))
       saver.restore(sess, checkpoint)
 
       # Run
-      (features_train, labels_train), _ = data.load(dataset)
-      ret = sess.run(graph.output,
-          feed_dict={graph.input: features_train[0:8]})
-      print(ret)
+      _, (features_test, labels_test) = data.load(dataset)
+      output = sess.run( graph.output,
+          feed_dict={
+            graph.input_ph: features_test[0:8],
+            graph.labels_ph: labels_test[0:8] })
+      print(output)
 
 
 def debug():

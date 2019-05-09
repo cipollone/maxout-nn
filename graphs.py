@@ -15,7 +15,8 @@ class CGraph:
   classification. Most parts of the net may change, but the outer structure
   is the same. The members are useful tf objects:
     graph: a tf.Graph
-    input: the input placeholder
+    input_ph: the input placeholder
+    labels_ph: the labels placeholder
     output: the predicted output
     loss: the loss
   '''
@@ -58,7 +59,8 @@ class CGraph:
 
     # Save
     self.graph = graph
-    self.input = input_ph
+    self.input_ph = input_ph
+    self.labels_ph = labels_ph
     self.output = output
     self.loss = loss
 
