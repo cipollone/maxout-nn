@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
 '''\
-Main script file.
-
-Depending on the parameters, we can train, test or do predictions with Maxout
-networks.
+Main script file. Depending on the parameters, we can train or test with
+different Maxout networks.
 '''
 
 
@@ -17,22 +15,23 @@ import tensorflow as tf
 from graphs import CGraph
 import data
 
-# TODO: move this to main
-learning_rate = 0.05
-n_steps = 200
-log_every = 20
 
+# TODO: training and testing loss
 # TODO: add option to continue training
 # TODO: subs delays with confirmations
 
 
-def training(dataset):
+def training(args):
   '''\
   Training function. Creates the training tf Graph and starts training. Saves
-  checkpoints in models/<dataset>/model
+  checkpoints in models/<args.dataset>/model
 
   Args:
-    dataset: The name of the dataset to use. Each dataset has a different model
+    args: namespace of options with these fields:
+      dataset: dataset name
+      rate: learning rate
+      steps: total number of optimization steps
+      log_every: interval of steps between log/saved models
   '''
 
   # Prints
@@ -40,23 +39,27 @@ def training(dataset):
   time.sleep(1)
 
   # Clear old logs and models
-  clear_saved(dataset)
+  clear_saved(args.dataset)
 
   # Instantiate the graph
-  graph = CGraph(dataset)
+  graph = CGraph(args.dataset)
 
   # Use it
   with graph.graph.as_default():
 
     # Add the optimizer
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+    optimizer = tf.train.GradientDescentOptimizer(args.rate)
     minimize = optimizer.minimize(graph.loss)
 
     # Init
     init = tf.global_variables_initializer()
     
     # Logger
-    logs_writer = tf.summary.FileWriter('logs', graph.graph)
+    tf.summary.scalar('loss', graph.loss)
+    summaries_op = tf.summary.merge_all()
+
+    logs_writer = tf.summary.FileWriter('logs')
+    logs_writer.add_graph(graph.graph)
     logs_writer.flush()
 
     # Saver
@@ -69,48 +72,51 @@ def training(dataset):
       sess.run(init)
 
       # Load dataset once
-      (features_train, labels_train), _ = data.load(dataset)
+      (features_train, labels_train), _ = data.load(args.dataset)
 
-      # Train
-      for step in range(1, n_steps+1):
+      # Main loop
+      for step in range(1, args.steps+1):
 
-        # Minimize
+        # Train
         sess.run( minimize, feed_dict={
               graph.input_ph: features_train,
               graph.labels_ph: labels_train })
 
-        # Every log_every steps
-        if step % log_every == 0:
+        # Every log_every steps or at the end
+        if step % args.log_every == 0 or step == args.steps:
 
           # Test
-          loss = sess.run(graph.loss, feed_dict={
+          loss, summaries = sess.run( (graph.loss, summaries_op),
+              feed_dict={
                 graph.input_ph: features_train,
                 graph.labels_ph: labels_train })
 
           # Log
           print('Step: ' + str(step) + ', loss: ' + str(loss))
+          logs_writer.add_summary(summaries, step)
 
           # Save parameters
           model_name = 'model-step{}'.format(step)
-          saver.save(sess, os.path.join('models',dataset,model_name))
+          saver.save(sess, os.path.join('models',args.dataset,model_name))
 
 
-def predict(dataset):
+def testing(args):
   '''\
-  Predict from a set of inputs. Creates the tf Graph for predictions, loads the
-  weights and makes a prediction for each input. Parameters are loaded from
-  last checkpoint: models/<dataset>/model
+  Test the performances of the net on the test set. Creates the tf Graph for
+  testing, loads the weights and evaluates the predictions. Parameters are
+  loaded from last checkpoint: models/<args.dataset>/model.
   
   Args:
-    dataset: The name of the dataset to use. Each dataset has a different model
+    args: namespace of options with these fields:
+      dataset: dataset name
   '''
 
   # Prints
-  print('Predict')
+  print('Testing')
   time.sleep(1)
 
   # Instantiate the graph
-  graph = CGraph(dataset)
+  graph = CGraph(args.dataset)
 
   # Use it
   with graph.graph.as_default():
@@ -123,16 +129,20 @@ def predict(dataset):
 
       # Restore parameters
       checkpoint = tf.train.latest_checkpoint(
-          checkpoint_dir=os.path.join('models',dataset))
+          checkpoint_dir=os.path.join('models',args.dataset))
       saver.restore(sess, checkpoint)
 
       # Run
-      _, (features_test, labels_test) = data.load(dataset)
-      output = sess.run( graph.output,
+      _, (features_test, labels_test) = data.load(args.dataset)
+      output,loss,errors = sess.run( (graph.output, graph.loss, graph.errors),
           feed_dict={
-            graph.input_ph: features_test[0:8],
-            graph.labels_ph: labels_test[0:8] })
-      print(output)
+            graph.input_ph: features_test,
+            graph.labels_ph: labels_test })
+
+      # Out
+      print('Predicted:', output)
+      print('Loss:', loss)
+      print('Errors:', errors)
 
 
 def debug():
@@ -169,23 +179,32 @@ def main():
   Main function. Called when this file is executed as script
   '''
 
-  ## Parsing arguments
+  # Defaults
+  learning_rate = 0.05
+  n_steps = 200
+  log_every = 20
 
-  # Argument parser
-  parser = argparse.ArgumentParser(description='Training and predictions with\
+  ## Parsing arguments
+  parser = argparse.ArgumentParser(description='Training and testing with\
       the Maxout network')
-  parser.add_argument('op', choices=['train','predict','debug'],
+  parser.add_argument('op', choices=['train','test','debug'],
       help='What to do with the net')
   parser.add_argument('-d', '--dataset', default='example',
       choices=['example'], help='Which dataset to load')
+  parser.add_argument('-r', '--rate', type=float, default=learning_rate,
+      help='Learning rate / step size')
+  parser.add_argument('-s', '--steps', type=int, default=n_steps,
+      help='Number of steps of the optimization')
+  parser.add_argument('-l', '--log_every', type=int, default=log_every,
+      help='Interval of number of steps between logs/saved models')
 
   args = parser.parse_args()
 
   # Go
   if args.op == 'train':
-    training(args.dataset)
-  elif args.op == 'predict':
-    predict(args.dataset)
+    training(args)
+  elif args.op == 'test':
+    testing(args)
   elif args.op == 'debug':
     debug()
 

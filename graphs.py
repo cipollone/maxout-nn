@@ -19,6 +19,7 @@ class CGraph:
     labels_ph: the labels placeholder
     output: the predicted output
     loss: the loss
+    errors: number of wrong predictions
   '''
 
   def __init__(self, dataset):
@@ -48,14 +49,19 @@ class CGraph:
 
         # Prediction
         probabilities = tf.nn.softmax(logits, axis=1)
-        output = tf.argmax(probabilities, axis=1)
+        output = tf.argmax(probabilities, axis=1, output_type=tf.int32)
 
         # Loss
         loss = tf.losses.sparse_softmax_cross_entropy(
             labels=labels_ph, logits=logits)
 
+        # Errors
+        diff = tf.not_equal(output, labels_ph)
+        errors = tf.reduce_sum(tf.cast(diff, tf.int32))
+
       output = tf.identity(output, name='predicted_label')
       loss = tf.identity(loss, name='loss')
+      errors = tf.identity(errors, name='errors')
 
     # Save
     self.graph = graph
@@ -63,4 +69,5 @@ class CGraph:
     self.labels_ph = labels_ph
     self.output = output
     self.loss = loss
+    self.errors = errors
 
