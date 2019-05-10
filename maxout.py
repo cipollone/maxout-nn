@@ -9,34 +9,26 @@ different Maxout networks.
 import os
 import argparse
 import shutil
-import time
 import tensorflow as tf
 
 from graphs import CGraph
 import data
 
 
-# TODO: training and testing loss
+# TODO: add and compare optimizers
 # TODO: add option to continue training
-# TODO: subs delays with confirmations
 
 
 def training(args):
   '''\
-  Training function. Creates the training tf Graph and starts training. Saves
-  checkpoints in models/<args.dataset>/model
+  Training function. Saves checkpoints in models/<args.dataset>/model.
 
   Args:
-    args: namespace of options with these fields:
-      dataset: dataset name
-      rate: learning rate
-      steps: total number of optimization steps
-      log_every: interval of steps between log/saved models
+    args: a namespace object. Run `maxout.py -h' for a list of the available
+      options.
   '''
 
-  # Prints
   print('Training')
-  time.sleep(1)
 
   # Clear old logs and models
   clear_saved(args.dataset)
@@ -48,7 +40,7 @@ def training(args):
   with graph.graph.as_default():
 
     # Add the optimizer
-    optimizer = tf.train.GradientDescentOptimizer(args.rate)
+    optimizer = select_optimizer(args)
     minimize = optimizer.minimize(graph.loss)
 
     # Init
@@ -58,9 +50,8 @@ def training(args):
     tf.summary.scalar('loss', graph.loss)
     summaries_op = tf.summary.merge_all()
 
-    logs_writer = tf.summary.FileWriter('logs')
-    logs_writer.add_graph(graph.graph)
-    logs_writer.flush()
+    train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
+    test_writer = tf.summary.FileWriter('logs/test', graph=graph.graph)
 
     # Saver
     saver = tf.train.Saver(max_to_keep=3)
@@ -72,28 +63,33 @@ def training(args):
       sess.run(init)
 
       # Load dataset once
-      (features_train, labels_train), _ = data.load(args.dataset)
+      (data_train, data_test) = data.load(args.dataset)
 
       # Main loop
       for step in range(1, args.steps+1):
 
         # Train
         sess.run( minimize, feed_dict={
-              graph.input_ph: features_train,
-              graph.labels_ph: labels_train })
+              graph.input_ph: data_train[0],
+              graph.labels_ph: data_train[1] })
 
         # Every log_every steps or at the end
         if step % args.log_every == 0 or step == args.steps:
 
-          # Test
-          loss, summaries = sess.run( (graph.loss, summaries_op),
+          # Test on train set and test set
+          train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
               feed_dict={
-                graph.input_ph: features_train,
-                graph.labels_ph: labels_train })
+                graph.input_ph: data_train[0],
+                graph.labels_ph: data_train[1] })
+          test_loss, test_summaries = sess.run( (graph.loss, summaries_op),
+              feed_dict={
+                graph.input_ph: data_test[0],
+                graph.labels_ph: data_test[1] })
 
           # Log
-          print('Step: ' + str(step) + ', loss: ' + str(loss))
-          logs_writer.add_summary(summaries, step)
+          print('Step: ' + str(step) + ', train loss: ' + str(train_loss))
+          train_writer.add_summary(train_summaries, step)
+          test_writer.add_summary(test_summaries, step)
 
           # Save parameters
           model_name = 'model-step{}'.format(step)
@@ -111,9 +107,7 @@ def testing(args):
       dataset: dataset name
   '''
 
-  # Prints
   print('Testing')
-  time.sleep(1)
 
   # Instantiate the graph
   graph = CGraph(args.dataset)
@@ -145,7 +139,7 @@ def testing(args):
       print('Errors:', errors)
 
 
-def debug():
+def debug(args):
   '''\
   Debugging
   '''
@@ -153,30 +147,69 @@ def debug():
   # Prints
   print('Debug')
 
+  print(args)
+  select_optimizer(args)
+
 
 def clear_saved(dataset):
   '''\
-  Removes all files from 'models/<dataset>/' and 'logs/'.
+  Removes all files from 'models/<dataset>/', 'logs/train' and 'logs/test'.
+  Ask for confirmation at terminal.
 
   Args:
     dataset: The name of the dataset to use.
   '''
+
+  # Confirm
+  print('Clearing previous savings. Hit enter to confirm.')
+  input()
   
-  # List
-  model = os.path.join('models', dataset)
-  logs = [os.path.join('logs',l) for l in os.listdir('logs')
-      if 'dir.txt' not in l]
+  # To remove
+  join = os.path.join
+  model = join('models', dataset)
+  logs = (join('logs','train'), join('logs','test'))
+  paths = (model,) + logs
 
   # Rm
-  if os.path.exists(model):
-    shutil.rmtree(model)
-  for f in logs:
-    os.remove(f)
+  for p in paths:
+    if os.path.exists(p):
+      shutil.rmtree(p)
+
+
+def select_optimizer(args):
+  '''\
+  Returns a tf optimizer, initialized with options.
+  
+  Args:
+    args: namespace of options with these fields:
+      rate: learning rate
+      optimizer: identifier of the optimizer to use. Choices:
+          gd: GradientDescentOptimizer
+      parameters: a list of `opt=val' options to pass to the constructor.
+        val is numeric.
+
+  Returns:
+    a tf.train.Optimizer
+  '''
+
+  # Extract parameters
+  params = dict()
+  if args.parameters:
+    for p in args.parameters:
+      key, val = p.split('=',maxsplit=1)
+      params[key.strip()] = float(val)
+
+  # Select optimizer
+  if args.optimizer == 'gd':
+    opt = tf.train.GradientDescentOptimizer(args.rate)
+
+  print('Using', opt.get_name())
+  return opt
 
 
 def main():
   '''\
-  Main function. Called when this file is executed as script
+  Main function. Called when this file is executed as script.
   '''
 
   # Defaults
@@ -188,7 +221,7 @@ def main():
   parser = argparse.ArgumentParser(description='Training and testing with\
       the Maxout network')
   parser.add_argument('op', choices=['train','test','debug'],
-      help='What to do with the net')
+      help='What to do with the net. Most options only affect training.')
   parser.add_argument('-d', '--dataset', default='example',
       choices=['example'], help='Which dataset to load')
   parser.add_argument('-r', '--rate', type=float, default=learning_rate,
@@ -197,6 +230,14 @@ def main():
       help='Number of steps of the optimization')
   parser.add_argument('-l', '--log_every', type=int, default=log_every,
       help='Interval of number of steps between logs/saved models')
+  parser.add_argument('-o', '--optimizer', choices=['gd'], default='gd',
+      help='Name of the optimizer to use.\
+          See `help(maxout.select_optimizer)\' to know more.')
+  parser.add_argument('-p', '--parameters',
+      nargs='+', metavar='PARAMETER',
+      help='If the optimizer needs other arguments than just --rate,\
+      use this option. One or more `opt=val\' for any opt argument of the\
+      optimizer selected (see tf doc). val is assumed numeric.')
 
   args = parser.parse_args()
 
@@ -206,7 +247,7 @@ def main():
   elif args.op == 'test':
     testing(args)
   elif args.op == 'debug':
-    debug()
+    debug(args)
 
 
 
