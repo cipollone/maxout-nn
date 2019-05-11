@@ -1,1 +1,3 @@
 This directory is for saved models.
+Different nets are saved in different directories. When a net is trained,
+any previous model of the same net is deleted.
