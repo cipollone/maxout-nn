@@ -15,10 +15,6 @@ from graphs import CGraph
 import data
 
 
-# TODO: add and compare optimizers
-# TODO: add option to continue training
-
-
 def training(args):
   '''\
   Training function. Saves checkpoints in models/<args.dataset>/model.
@@ -28,10 +24,21 @@ def training(args):
       options.
   '''
 
-  print('Training')
+  print('| Training')
 
-  # Clear old logs and models
-  clear_saved(args.dataset)
+  # Start or continue? Check directories and set iteration range
+  if not args.cont:
+    # Start from scratch
+    clear_saved(args.dataset)
+    steps_range = range(1, args.steps + 1)
+  else:
+    # Continue
+    if os.path.exists('logs/train') or os.path.exists('logs/test'):
+      raise FileExistsError(
+        "Move 'logs/train' and 'logs/test' if you want to continue.")
+    with open('logs/last_step.txt') as step_f:
+      last_step = int(step_f.read())
+    steps_range = range(last_step+1, last_step+args.steps+1)
 
   # Instantiate the graph
   graph = CGraph(args.dataset)
@@ -60,13 +67,19 @@ def training(args):
     with tf.Session() as sess:
 
       # Initialize variables
-      sess.run(init)
+      if not args.cont: # First time
+        sess.run(init)
+      else:             # Continue
+        checkpoint = tf.train.latest_checkpoint(
+            checkpoint_dir=os.path.join('models',args.dataset))
+        saver.restore(sess, checkpoint)
+        print('| Variables restored.')
 
       # Load dataset once
       (data_train, data_test) = data.load(args.dataset)
 
       # Main loop
-      for step in range(1, args.steps+1):
+      for step in steps_range:
 
         # Train
         sess.run( minimize, feed_dict={
@@ -74,7 +87,7 @@ def training(args):
               graph.labels_ph: data_train[1] })
 
         # Every log_every steps or at the end
-        if step % args.log_every == 0 or step == args.steps:
+        if step % args.log_every == 0 or step == steps_range.stop-1:
 
           # Test on train set and test set
           train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
@@ -87,13 +100,18 @@ def training(args):
                 graph.labels_ph: data_test[1] })
 
           # Log
-          print('Step: ' + str(step) + ', train loss: ' + str(train_loss))
+          print('| Step: ' + str(step) + ', train loss: ' + str(train_loss))
           train_writer.add_summary(train_summaries, step)
           test_writer.add_summary(test_summaries, step)
 
           # Save parameters
           model_name = 'model-step{}'.format(step)
           saver.save(sess, os.path.join('models',args.dataset,model_name))
+
+          # Save step number
+          with open('logs/last_step.txt', 'wt') as step_f:
+            step_f.write(str(step))
+          
 
 
 def testing(args):
@@ -107,7 +125,7 @@ def testing(args):
       dataset: dataset name
   '''
 
-  print('Testing')
+  print('| Testing')
 
   # Instantiate the graph
   graph = CGraph(args.dataset)
@@ -134,9 +152,9 @@ def testing(args):
             graph.labels_ph: labels_test })
 
       # Out
-      print('Predicted:', output)
-      print('Loss:', loss)
-      print('Errors:', errors)
+      print('| Predicted:', output)
+      print('| Loss:', loss)
+      print('| Errors:', errors)
 
 
 def debug(args):
@@ -145,10 +163,9 @@ def debug(args):
   '''
 
   # Prints
-  print('Debug')
+  print('| Debug')
 
   print(args)
-  select_optimizer(args)
 
 
 def clear_saved(dataset):
@@ -161,7 +178,7 @@ def clear_saved(dataset):
   '''
 
   # Confirm
-  print('Clearing previous savings. Hit enter to confirm.')
+  print('| Clearing previous savings. Hit enter to confirm.')
   input()
   
   # To remove
@@ -178,13 +195,18 @@ def clear_saved(dataset):
 
 def select_optimizer(args):
   '''\
-  Returns a tf optimizer, initialized with options.
+  Returns a tf optimizer, initialized with options. See the tf api of these
+  optimizers to see what options are available for each one.
   
   Args:
     args: namespace of options with these fields:
       rate: learning rate
       optimizer: identifier of the optimizer to use. Choices:
           gd: GradientDescentOptimizer
+          rms: RMSPropOptimizer
+          adagrad: AdagradOptimizer
+          adadelta: AdadeltaOptimizer. Use rate=1 and other options.
+          adam: AdamOptimizer
       parameters: a list of `opt=val' options to pass to the constructor.
         val is numeric.
 
@@ -201,9 +223,20 @@ def select_optimizer(args):
 
   # Select optimizer
   if args.optimizer == 'gd':
-    opt = tf.train.GradientDescentOptimizer(args.rate)
+    opt = tf.train.GradientDescentOptimizer(args.rate, **params)
+  elif args.optimizer == 'rms':
+    opt = tf.train.RMSPropOptimizer(args.rate, **params)
+  elif args.optimizer == 'adagrad':
+    opt = tf.train.AdagradOptimizer(args.rate, **params)
+  elif args.optimizer == 'adadelta':
+    opt = tf.train.AdadeltaOptimizer(args.rate, **params)
+  elif args.optimizer == 'adam':
+    opt = tf.train.AdamOptimizer(args.rate, **params)
+  else:
+    raise ValueError(args.optimizer+
+      ' is not an optimizer. See help(maxout.select_optimizer)')
 
-  print('Using', opt.get_name())
+  print('| Using', opt.get_name())
   return opt
 
 
@@ -216,6 +249,7 @@ def main():
   learning_rate = 0.05
   n_steps = 200
   log_every = 20
+  optimizer = 'rms'
 
   ## Parsing arguments
   parser = argparse.ArgumentParser(description='Training and testing with\
@@ -225,12 +259,13 @@ def main():
   parser.add_argument('-d', '--dataset', default='example',
       choices=['example'], help='Which dataset to load')
   parser.add_argument('-r', '--rate', type=float, default=learning_rate,
-      help='Learning rate / step size')
+      help='Learning rate / step size. Depends on the optimizer.')
   parser.add_argument('-s', '--steps', type=int, default=n_steps,
       help='Number of steps of the optimization')
   parser.add_argument('-l', '--log_every', type=int, default=log_every,
       help='Interval of number of steps between logs/saved models')
-  parser.add_argument('-o', '--optimizer', choices=['gd'], default='gd',
+  parser.add_argument('-o', '--optimizer', default=optimizer,
+      choices=['gd', 'rms', 'adagrad', 'adadelta', 'adam'],
       help='Name of the optimizer to use.\
           See `help(maxout.select_optimizer)\' to know more.')
   parser.add_argument('-p', '--parameters',
@@ -238,6 +273,9 @@ def main():
       help='If the optimizer needs other arguments than just --rate,\
       use this option. One or more `opt=val\' for any opt argument of the\
       optimizer selected (see tf doc). val is assumed numeric.')
+  parser.add_argument('-c', '--continue', action='store_true', dest='cont',
+      help='Loads most recent saved model and resumes training from there.\
+          Continue with the same optimizer.')
 
   args = parser.parse_args()
 

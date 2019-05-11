@@ -38,7 +38,6 @@ Dataset loading module. Dataset suppported MNIST ans CIFAR-10.
 import numpy as np
 import tensorflow as tf
 
-# TODO: use iterators to avoid bottlenecks
 
 def load(dataset):
   '''\
@@ -76,7 +75,7 @@ def placeholder(dataset):
     raise ValueError(dataset + ' is not a valid dataset')
 
 
-# TODO: demo dataset, written here for simplicity. Delete also this stuff.
+# NOTE: demo dataset, written here for simplicity.
 # Test dataset
 iris_test_x = np.array([
   [5.9,3.0,4.2,1.5],
