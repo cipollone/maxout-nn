@@ -20,6 +20,7 @@ class CGraph:
     output: the predicted output
     loss: the loss
     errors: number of wrong predictions
+    dropouts: list two dropout-rate placeholders for input and hidden units
   '''
 
   def __init__(self, dataset):
@@ -39,8 +40,14 @@ class CGraph:
     
       # Net
       with tf.variable_scope('net'):
+
+        # Dropout placeholders
+        dropouts = [tf.placeholder(tf.float32, shape=[], name=i+'_dropout')
+            for i in ('input','hidden')]
+
+        # Model
         if dataset == 'example':
-          logits = nets.example_net.model(input_ph)
+          logits = nets.example_net.model(input_ph, dropouts)
         else:
           raise ValueError(dataset + ' is not a valid dataset')
       
@@ -70,4 +77,5 @@ class CGraph:
     self.output = output
     self.loss = loss
     self.errors = errors
+    self.dropouts = dropouts
 
