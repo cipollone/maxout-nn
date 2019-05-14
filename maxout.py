@@ -5,6 +5,9 @@ Main script file. Depending on the parameters, we can train or test with
 different Maxout networks.
 '''
 
+# NOTE: using default variables initialization
+# NOTE: using default variables regularization
+
 
 import os
 import argparse
@@ -180,7 +183,47 @@ def debug(args):
   # Prints
   print('| Debug')
 
-  print(args)
+  # Instantiate the graph
+  graph = CGraph(args.dataset)
+  g = graph.graph
+
+  # Use it
+  with graph.graph.as_default():
+    
+    # Create a Saver
+    saver = tf.train.Saver()
+
+    # Run
+    with tf.Session() as sess:
+
+      # Restore parameters
+      checkpoint = tf.train.latest_checkpoint(
+          checkpoint_dir=os.path.join('models',args.dataset))
+      saver.restore(sess, checkpoint)
+
+      # Get tensors
+      mul = g.get_tensor_by_name('net/maxout1/einsum/transpose_2:0')
+      affine = g.get_tensor_by_name('net/maxout1/add:0')
+      maxout = g.get_tensor_by_name('net/maxout1/Max:0')
+      x = g.get_tensor_by_name('input_features:0')
+      with tf.variable_scope('', reuse=True):
+        W = tf.get_variable('net/maxout1/W')
+        b = tf.get_variable('net/maxout1/b')
+
+      # Run
+      _, (features_test, labels_test) = data.load(args.dataset)
+
+      ret = sess.run( (W, b, x, mul, affine, maxout),
+          feed_dict={
+            graph.input_ph: features_test[0:2],
+            graph.labels_ph: labels_test[0:2],
+            graph.dropouts[0]: 0,
+            graph.dropouts[1]: 0,
+          })
+
+      # Out
+      for (name, val) in zip(('W','b','x','mul','affine','maxout'), ret):
+        print(name,':',val)
 
 
 def clear_saved(dataset):
