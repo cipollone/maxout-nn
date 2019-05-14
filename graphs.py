@@ -20,6 +20,8 @@ class CGraph:
     output: the predicted output
     loss: the loss
     errors: number of wrong predictions
+    dropouts: list two dropout-rate placeholders for input and hidden units
+    accuracy: accuracy tensor
   '''
 
   def __init__(self, dataset):
@@ -39,8 +41,14 @@ class CGraph:
     
       # Net
       with tf.variable_scope('net'):
+
+        # Dropout placeholders
+        dropouts = [tf.placeholder(tf.float32, shape=[], name=i+'_dropout')
+            for i in ('input','hidden')]
+
+        # Model
         if dataset == 'example':
-          logits = nets.example_net.model(input_ph)
+          logits = nets.example_net.model(input_ph, dropouts)
         else:
           raise ValueError(dataset + ' is not a valid dataset')
       
@@ -55,13 +63,15 @@ class CGraph:
         loss = tf.losses.sparse_softmax_cross_entropy(
             labels=labels_ph, logits=logits)
 
-        # Errors
+        # Errors and accuracy
         diff = tf.not_equal(output, labels_ph)
         errors = tf.reduce_sum(tf.cast(diff, tf.int32))
+        accuracy = 1 - errors/tf.size(diff)
 
       output = tf.identity(output, name='predicted_label')
       loss = tf.identity(loss, name='loss')
       errors = tf.identity(errors, name='errors')
+      accuracy = tf.identity(accuracy, name='accuracy')
 
     # Save
     self.graph = graph
@@ -70,4 +80,6 @@ class CGraph:
     self.output = output
     self.loss = loss
     self.errors = errors
+    self.dropouts = dropouts
+    self.accuracy = accuracy
 

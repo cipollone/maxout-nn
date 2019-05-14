@@ -55,6 +55,7 @@ def training(args):
     
     # Logger
     tf.summary.scalar('loss', graph.loss)
+    tf.summary.scalar('accuracy', graph.accuracy)
     summaries_op = tf.summary.merge_all()
 
     train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
@@ -82,9 +83,13 @@ def training(args):
       for step in steps_range:
 
         # Train
-        sess.run( minimize, feed_dict={
+        sess.run( minimize,
+            feed_dict={
               graph.input_ph: data_train[0],
-              graph.labels_ph: data_train[1] })
+              graph.labels_ph: data_train[1],
+              graph.dropouts[0]: args.dropout[0],
+              graph.dropouts[1]: args.dropout[1],
+            })
 
         # Every log_every steps or at the end
         if step % args.log_every == 0 or step == steps_range.stop-1:
@@ -93,11 +98,17 @@ def training(args):
           train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
               feed_dict={
                 graph.input_ph: data_train[0],
-                graph.labels_ph: data_train[1] })
+                graph.labels_ph: data_train[1],
+                graph.dropouts[0]: 0,
+                graph.dropouts[1]: 0,
+              })
           test_loss, test_summaries = sess.run( (graph.loss, summaries_op),
               feed_dict={
                 graph.input_ph: data_test[0],
-                graph.labels_ph: data_test[1] })
+                graph.labels_ph: data_test[1],
+                graph.dropouts[0]: 0,
+                graph.dropouts[1]: 0,
+              })
 
           # Log
           print('| Step: ' + str(step) + ', train loss: ' + str(train_loss))
@@ -121,8 +132,8 @@ def testing(args):
   loaded from last checkpoint: models/<args.dataset>/model.
   
   Args:
-    args: namespace of options with these fields:
-      dataset: dataset name
+    args: a namespace object. Run `maxout.py -h' for a list of the available
+      options.
   '''
 
   print('| Testing')
@@ -146,10 +157,14 @@ def testing(args):
 
       # Run
       _, (features_test, labels_test) = data.load(args.dataset)
+
       output,loss,errors = sess.run( (graph.output, graph.loss, graph.errors),
           feed_dict={
             graph.input_ph: features_test,
-            graph.labels_ph: labels_test })
+            graph.labels_ph: labels_test,
+            graph.dropouts[0]: 0,
+            graph.dropouts[1]: 0,
+          })
 
       # Out
       print('| Predicted:', output)
@@ -276,8 +291,22 @@ def main():
   parser.add_argument('-c', '--continue', action='store_true', dest='cont',
       help='Loads most recent saved model and resumes training from there.\
           Continue with the same optimizer.')
+  parser.add_argument('--dropout', type=float, nargs=2, metavar=('input_rate',
+      'hidden_rate'),
+      help='Dropout probability: drop probability for input and hidden units.')
 
   args = parser.parse_args()
+
+  # Small checks for dropout
+  if not args.dropout:
+    args.dropout = (0,0) # Keep everything
+  else:
+    if not (0 <= args.dropout[0] <= 1 and 0 <= args.dropout[1] <= 1):
+      raise ValueError(
+        '--dropout arguments is not a probability. It must be in [0, 1].')
+    if args.op == 'test':
+      print('Warning: dropout argument is not used in testing.')
+
 
   # Go
   if args.op == 'train':

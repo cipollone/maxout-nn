@@ -6,13 +6,14 @@ This is not the real net to use.
 import tensorflow as tf
 
 
-def model(data):
+def model(data, dropouts):
   '''\
   Example of a feedforward net definition.
   Logistic model (softmax not applied).
 
   Args:
     data: tensor of input features (batch_size,) + features.shape
+    dropout: not used in this model
 
   Returns:
     array of shape (batch_size, classes) with logits of each class
