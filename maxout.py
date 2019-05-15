@@ -8,6 +8,7 @@ different Maxout networks.
 # NOTE: using default variables initialization
 # NOTE: using default variables regularization
 
+# TODO: study tf.Data.dataset is this useful? Adapt for iris
 
 import os
 import argparse
