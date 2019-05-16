@@ -7,8 +7,11 @@ different Maxout networks.
 
 # NOTE: using default variables initialization
 # NOTE: using default variables regularization
+# NOTE: not explaining how the dataset should be saved
 
-# TODO: study tf.Data.dataset is this useful? Adapt for iris
+# TODO: connect batch option
+# TODO: write input pipeline
+# TODO: avoid to reset iterator too often. (epochs not necessary)
 
 import os
 import argparse
@@ -50,13 +53,10 @@ def training(args):
   # Use it
   with graph.graph.as_default():
 
-    # Add the optimizer
+    # Optimizer
     optimizer = select_optimizer(args)
     minimize = optimizer.minimize(graph.loss)
 
-    # Init
-    init = tf.global_variables_initializer()
-    
     # Logger
     tf.summary.scalar('loss', graph.loss)
     tf.summary.scalar('accuracy', graph.accuracy)
@@ -73,15 +73,15 @@ def training(args):
 
       # Initialize variables
       if not args.cont: # First time
-        sess.run(init)
+        sess.run(tf.global_variables_initializer())
       else:             # Continue
         checkpoint = tf.train.latest_checkpoint(
             checkpoint_dir=os.path.join('models',args.dataset))
         saver.restore(sess, checkpoint)
         print('| Variables restored.')
 
-      # Load dataset once
-      (data_train, data_test) = data.load(args.dataset)
+      # Initialize iterator for training
+      sess.run( graph.use_train_data )
 
       # Main loop
       for step in steps_range:
@@ -89,8 +89,6 @@ def training(args):
         # Train
         sess.run( minimize,
             feed_dict={
-              graph.input_ph: data_train[0],
-              graph.labels_ph: data_train[1],
               graph.dropouts[0]: args.dropout[0],
               graph.dropouts[1]: args.dropout[1],
             })
@@ -101,18 +99,16 @@ def training(args):
           # Test on train set and test set
           train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
               feed_dict={
-                graph.input_ph: data_train[0],
-                graph.labels_ph: data_train[1],
                 graph.dropouts[0]: 0,
                 graph.dropouts[1]: 0,
               })
+          sess.run( graph.use_test_data )
           test_loss, test_summaries = sess.run( (graph.loss, summaries_op),
               feed_dict={
-                graph.input_ph: data_test[0],
-                graph.labels_ph: data_test[1],
                 graph.dropouts[0]: 0,
                 graph.dropouts[1]: 0,
               })
+          sess.run( graph.use_train_data ) # Back to train for next step
 
           # Log
           print('| Step: ' + str(step) + ', train loss: ' + str(train_loss))
@@ -159,13 +155,11 @@ def testing(args):
           checkpoint_dir=os.path.join('models',args.dataset))
       saver.restore(sess, checkpoint)
 
-      # Run
-      _, (features_test, labels_test) = data.load(args.dataset)
+      # Training set
+      sess.run( graph.use_test_data )
 
       output,loss,errors = sess.run( (graph.output, graph.loss, graph.errors),
           feed_dict={
-            graph.input_ph: features_test,
-            graph.labels_ph: labels_test,
             graph.dropouts[0]: 0,
             graph.dropouts[1]: 0,
           })
@@ -184,47 +178,9 @@ def debug(args):
   # Prints
   print('| Debug')
 
-  # Instantiate the graph
-  graph = CGraph(args.dataset)
-  g = graph.graph
 
-  # Use it
-  with graph.graph.as_default():
-    
-    # Create a Saver
-    saver = tf.train.Saver()
-
-    # Run
-    with tf.Session() as sess:
-
-      # Restore parameters
-      checkpoint = tf.train.latest_checkpoint(
-          checkpoint_dir=os.path.join('models',args.dataset))
-      saver.restore(sess, checkpoint)
-
-      # Get tensors
-      mul = g.get_tensor_by_name('net/maxout1/einsum/transpose_2:0')
-      affine = g.get_tensor_by_name('net/maxout1/add:0')
-      maxout = g.get_tensor_by_name('net/maxout1/Max:0')
-      x = g.get_tensor_by_name('input_features:0')
-      with tf.variable_scope('', reuse=True):
-        W = tf.get_variable('net/maxout1/W')
-        b = tf.get_variable('net/maxout1/b')
-
-      # Run
-      _, (features_test, labels_test) = data.load(args.dataset)
-
-      ret = sess.run( (W, b, x, mul, affine, maxout),
-          feed_dict={
-            graph.input_ph: features_test[0:2],
-            graph.labels_ph: labels_test[0:2],
-            graph.dropouts[0]: 0,
-            graph.dropouts[1]: 0,
-          })
-
-      # Out
-      for (name, val) in zip(('W','b','x','mul','affine','maxout'), ret):
-        print(name,':',val)
+  import pdb
+  pdb.set_trace()
 
 
 def clear_saved(dataset):
@@ -243,8 +199,8 @@ def clear_saved(dataset):
   # To remove
   join = os.path.join
   model = join('models', dataset)
-  logs = (join('logs','train'), join('logs','test'))
-  paths = (model,) + logs
+  logs = [join('logs',x) for x in ['train','test','debug']]
+  paths = [model] + logs
 
   # Rm
   for p in paths:

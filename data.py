@@ -1,97 +1,98 @@
 '''\
-Dataset loading module. Dataset suppported MNIST ans CIFAR-10.
+Dataset loading module. See maxout -h for a list of the supported datasets.
+Using the same reinitializable iterator with train and test datasets.
 '''
-# TODO: modify this file to load the real dataset.
-# See the online documentation of tf.data module to see how to do this
-# There are mainly two alternatives: placeholders and iterators.
-# This tiny dataset can be used all at once. However, bigger datasets often
-# needs to be loaded and used in blocks `batches' because they are too big for
-# RAM (or maybe because training is improved). You should add an option to
-# specify batch size. Also, we could use batchsize=Null to indicate the
-# whole dataset.
-#
-# First download the MNIST and CIFAR-10 dataet in two folders:
-# ./datasets/mnist/ and ./datasets/cifar-10/. Please, write what you did to
-# prepare them, because i'll need to do the same.
-# Feel free do delete any funcion in this file and modify as you need
-# (everything is saved, anyway).
-#
-# We could use functions, as I did here in this simple case, or use classes.
-# For example:
-# --
-# get_dataset(dataset): return Dataset(dataset)
-# class Dataset:
-#   def __init__(self,dataset,batchsize):
-#     # Set the information for the correct dataset
-#   def get_next_batch(self):
-#     '''return next batch of data'''
-#   def placeholder(self):
-#     '''return placeholder'''
-# --
-# or similar.. (this would be different with iterators)
-#
-# Use docstrings comments with similar format:
-#   ''' The strings just below every def or class'''
-# Avoid global variables, use classes if they need to change
-
 
 import numpy as np
 import tensorflow as tf
 
 
-def load(dataset):
+def dataset(name, group):
   '''\
-  Returns the dataset.
+  Returns the Dataset. Both 'train' and 'test' dataset contain a group of
+  elements: 'train' is repeated and shuffled, 'test' is the whole test set.
 
   Args:
-    dataset: name of the dataset to load.
+    name: name of the dataset to use.
+    group: 'train' or 'test'.
 
   Returns:
-    ((train_x, train_y), (test_x, test_y)): numpy arrays
+    a tf Dataset that contains groups of (features, label) pairs
   '''
-  if dataset == 'example':
-    return _load_iris()
+
+  # Check
+  if not group in ('train','test'):
+    raise ValueError("Group must be 'train' or 'test'")
+
+  # Create
+  if name == 'example':
+    (data, size) = _iris_dataset(group)
   else:
-    raise ValueError(dataset + ' is not a valid dataset')
+    raise ValueError(name + ' is not a valid dataset')
+
+  # Input pipeline
+  if group == 'test':
+    data = data.batch(size)     # All toghether
+  else:
+    data = data.batch(120).repeat()
+
+  return data
 
 
-def placeholder(dataset):
+def iterator(name):
   '''\
-  Returns a tf.placeholder for the input and output tensors for each dataset.
-  The first dimension represents the batch size and it's left unspecified.
+  Returns a reinitializable tf Iterator for batches of the dataset 'name'. The
+  shape of the objects returned depends on 'name'. The iterator has the first
+  dimension unspecified, because that is the batch size. The iterator is
+  created on a generic dataset of the correct type. It needs to be initialized
+  with a dataset before use.
 
   Args:
-    dataset: name of the dataset to load.
+    name: name of the dataset to use.
 
   Returns:
-    (input_placeholder, output_placeholder)
+    a tf Iterator
   '''
-  if dataset == 'example':
-    return _placeholder_iris()
+
+  if name == 'example':
+    return _iris_iterator()
   else:
-    raise ValueError(dataset + ' is not a valid dataset')
+    raise ValueError(name + ' is not a valid dataset')
 
 
-def _load_iris():
+def _iris_dataset(group):
   '''\
-  Loads and returns the iris dataset. See load().
+  See dataset().
+
+  Returns:
+    (dataset, n): dataset and number of samples available
   '''
 
-  train_x = np.genfromtxt('datasets/IRIS/iris_train_features.csv',delimiter=',')
-  train_y = np.genfromtxt('datasets/IRIS/iris_train_labels.csv',delimiter=',')
-  test_x = np.genfromtxt('datasets/IRIS/iris_test_features.csv',delimiter=',')
-  test_y = np.genfromtxt('datasets/IRIS/iris_test_labels.csv',delimiter=',')
+  # Read files
+  if group == 'train':
+    x = np.genfromtxt('datasets/IRIS/iris_train_features.csv',delimiter=',')
+    y = np.genfromtxt('datasets/IRIS/iris_train_labels.csv',delimiter=',')
+  else:
+    x = np.genfromtxt('datasets/IRIS/iris_test_features.csv',delimiter=',')
+    y = np.genfromtxt('datasets/IRIS/iris_test_labels.csv',delimiter=',')
 
-  return ((train_x, train_y), (test_x, test_y))
+  # To TF
+  n = y.size
+  x = tf.constant(x, dtype=tf.float32, name='features')
+  y = tf.constant(y, dtype=tf.int32, name='labels')
+  
+  # Return dataset
+  data = tf.data.Dataset.from_tensor_slices((x,y))
+  return (data, n)
 
 
-def _placeholder_iris():
+def _iris_iterator():
   '''\
-  Returns input and output placeholders. See load().
+  See iterator().
   '''
 
-  input_ph = tf.placeholder(tf.float32, shape=(None,4), name='input_features')
-  output_ph = tf.placeholder(tf.int32, shape=(None,), name='output_labels')
-
-  return (input_ph, output_ph)
+  return tf.data.Iterator.from_structure(
+      output_types = (tf.float32, tf.int32),
+      output_shapes = ((None,4), (None,)),
+      shared_name='Iris_iterator')
 
