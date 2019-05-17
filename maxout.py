@@ -8,10 +8,10 @@ different Maxout networks.
 # NOTE: using default variables initialization
 # NOTE: using default variables regularization
 # NOTE: not explaining how the dataset should be saved
+# NOTE: what about validation set?
 
-# TODO: connect batch option
-# TODO: write input pipeline
-# TODO: avoid to reset iterator too often. (epochs not necessary)
+# TODO: debug batch. Training do not work well if batch < size. Are all batches
+# of the same size?
 
 import os
 import argparse
@@ -19,7 +19,6 @@ import shutil
 import tensorflow as tf
 
 from graphs import CGraph
-import data
 
 
 def training(args):
@@ -48,7 +47,7 @@ def training(args):
     steps_range = range(last_step+1, last_step+args.steps+1)
 
   # Instantiate the graph
-  graph = CGraph(args.dataset)
+  graph = CGraph(args.dataset, args.batch)
 
   # Use it
   with graph.graph.as_default():
@@ -80,35 +79,37 @@ def training(args):
         saver.restore(sess, checkpoint)
         print('| Variables restored.')
 
-      # Initialize iterator for training
-      sess.run( graph.use_train_data )
+      # Create contexts
+      contexts = RunContexts(sess, train_set=graph.use_train_data,
+          test_set=graph.use_test_data)
 
       # Main loop
       for step in steps_range:
 
         # Train
-        sess.run( minimize,
-            feed_dict={
-              graph.dropouts[0]: args.dropout[0],
-              graph.dropouts[1]: args.dropout[1],
-            })
+        with contexts.train_set:
+          sess.run( minimize,
+              feed_dict={
+                graph.dropouts[0]: args.dropout[0],
+                graph.dropouts[1]: args.dropout[1],
+              })
 
         # Every log_every steps or at the end
         if step % args.log_every == 0 or step == steps_range.stop-1:
 
           # Test on train set and test set
-          train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
-              feed_dict={
-                graph.dropouts[0]: 0,
-                graph.dropouts[1]: 0,
-              })
-          sess.run( graph.use_test_data )
-          test_loss, test_summaries = sess.run( (graph.loss, summaries_op),
-              feed_dict={
-                graph.dropouts[0]: 0,
-                graph.dropouts[1]: 0,
-              })
-          sess.run( graph.use_train_data ) # Back to train for next step
+          with contexts.train_set:
+            train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
+                feed_dict={
+                  graph.dropouts[0]: 0,
+                  graph.dropouts[1]: 0,
+                })
+          with contexts.test_set:
+            test_loss, test_summaries = sess.run( (graph.loss, summaries_op),
+                feed_dict={
+                  graph.dropouts[0]: 0,
+                  graph.dropouts[1]: 0,
+                })
 
           # Log
           print('| Step: ' + str(step) + ', train loss: ' + str(train_loss))
@@ -155,14 +156,16 @@ def testing(args):
           checkpoint_dir=os.path.join('models',args.dataset))
       saver.restore(sess, checkpoint)
 
-      # Training set
-      sess.run( graph.use_test_data )
+      # Create context
+      contexts = RunContexts(sess, test_set=graph.use_test_data)
 
-      output,loss,errors = sess.run( (graph.output, graph.loss, graph.errors),
-          feed_dict={
-            graph.dropouts[0]: 0,
-            graph.dropouts[1]: 0,
-          })
+      # Predict
+      with contexts.test_set:
+        output,loss,errors = sess.run( (graph.output,graph.loss,graph.errors),
+            feed_dict={
+              graph.dropouts[0]: 0,
+              graph.dropouts[1]: 0,
+            })
 
       # Out
       print('| Predicted:', output)
@@ -255,6 +258,51 @@ def select_optimizer(args):
   return opt
 
 
+class RunContexts:
+  '''\
+  Create context managers for different runs of a Session. This class can be
+  used as:
+    cs = RunContexts(sess, train=init_training, test=init_testing, etc...)
+    with cs.train:
+      # Training
+  It generates a context manager for each keyword argument in input. Each 
+  context is entered but never left, so that successive `with cs.train' do not
+  call the init_training op.
+  '''
+
+  def __init__(self, sess, **contexts):
+    '''\
+    See class description.
+
+    Args:
+      sess: tf Session. Must be active when using the contexts.
+      key=val: context named 'key' with initialization op 'val'.
+    '''
+
+    self._sess = sess
+    for name in contexts:
+      self.__dict__[name] = self._RunContext(self, name, contexts[name])
+    self._current = None
+
+  class _RunContext:
+    '''\
+    The real context manager class. Internal class: do not use it directly.
+    '''
+
+    def __init__(self, allContexts, name, op):
+      self.all = allContexts
+      self.op = op
+      self.name = name
+
+    def __enter__(self):
+      if self.all._current != self:
+        self.all._sess.run(self.op)
+        self.all._current = self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+      pass
+
+
 def main():
   '''\
   Main function. Called when this file is executed as script.
@@ -294,6 +342,8 @@ def main():
   parser.add_argument('--dropout', type=float, nargs=2, metavar=('input_rate',
       'hidden_rate'),
       help='Dropout probability: drop probability for input and hidden units.')
+  parser.add_argument('-b', '--batch', type=int, 
+      help='Batch size. Without this parameter, the whole dataset is used.')
 
   args = parser.parse_args()
 

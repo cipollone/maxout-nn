@@ -24,12 +24,14 @@ class CGraph:
     use_test_data: use this op to read the test set
   '''
 
-  def __init__(self, dataset):
+  def __init__(self, dataset, batch=None):
     '''\
     Create the graph and save useful tensors.
 
     Args:
       dataset: The name of the dataset to use. Each dataset has its own net.
+      batch: Batch size in int, or None to use the full dataset. None by
+        default.
     '''
     
     # Create new
@@ -40,7 +42,7 @@ class CGraph:
       with tf.name_scope('input'):
 
         # Dataset objects
-        data_train = data.dataset(dataset, 'train')
+        data_train = data.dataset(dataset, 'train', batch)
         data_test = data.dataset(dataset, 'test')
 
         # Iterator for both datasets
@@ -96,4 +98,3 @@ class CGraph:
     self.accuracy = accuracy
     self.use_train_data = use_train_data
     self.use_test_data = use_test_data
-
