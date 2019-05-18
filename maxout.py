@@ -7,7 +7,6 @@ different Maxout networks.
 
 # NOTE: using default variables initialization
 # NOTE: using default variables regularization
-# NOTE: not explaining how the dataset should be saved
 # NOTE: what about validation set?
 
 # TODO: debug batch. Training do not work well if batch < size. Are all batches
@@ -19,6 +18,7 @@ import shutil
 import tensorflow as tf
 
 from graphs import CGraph
+from tools import RunContexts
 
 
 def training(args):
@@ -35,7 +35,7 @@ def training(args):
   # Start or continue? Check directories and set iteration range
   if not args.cont:
     # Start from scratch
-    clear_saved(args.dataset)
+    _clear_saved(args.dataset)
     steps_range = range(1, args.steps + 1)
   else:
     # Continue
@@ -53,7 +53,7 @@ def training(args):
   with graph.graph.as_default():
 
     # Optimizer
-    optimizer = select_optimizer(args)
+    optimizer = _select_optimizer(args)
     minimize = optimizer.minimize(graph.loss)
 
     # Logger
@@ -125,7 +125,6 @@ def training(args):
             step_f.write(str(step))
           
 
-
 def testing(args):
   '''\
   Test the performances of the net on the test set. Creates the tf Graph for
@@ -186,7 +185,7 @@ def debug(args):
   pdb.set_trace()
 
 
-def clear_saved(dataset):
+def _clear_saved(dataset):
   '''\
   Removes all files from 'models/<dataset>/', 'logs/train' and 'logs/test'.
   Ask for confirmation at terminal.
@@ -211,7 +210,7 @@ def clear_saved(dataset):
       shutil.rmtree(p)
 
 
-def select_optimizer(args):
+def _select_optimizer(args):
   '''\
   Returns a tf optimizer, initialized with options. See the tf api of these
   optimizers to see what options are available for each one.
@@ -252,55 +251,10 @@ def select_optimizer(args):
     opt = tf.train.AdamOptimizer(args.rate, **params)
   else:
     raise ValueError(args.optimizer+
-      ' is not an optimizer. See help(maxout.select_optimizer)')
+      ' is not an optimizer. See help(maxout._select_optimizer)')
 
   print('| Using', opt.get_name())
   return opt
-
-
-class RunContexts:
-  '''\
-  Create context managers for different runs of a Session. This class can be
-  used as:
-    cs = RunContexts(sess, train=init_training, test=init_testing, etc...)
-    with cs.train:
-      # Training
-  It generates a context manager for each keyword argument in input. Each 
-  context is entered but never left, so that successive `with cs.train' do not
-  call the init_training op.
-  '''
-
-  def __init__(self, sess, **contexts):
-    '''\
-    See class description.
-
-    Args:
-      sess: tf Session. Must be active when using the contexts.
-      key=val: context named 'key' with initialization op 'val'.
-    '''
-
-    self._sess = sess
-    for name in contexts:
-      self.__dict__[name] = self._RunContext(self, name, contexts[name])
-    self._current = None
-
-  class _RunContext:
-    '''\
-    The real context manager class. Internal class: do not use it directly.
-    '''
-
-    def __init__(self, allContexts, name, op):
-      self.all = allContexts
-      self.op = op
-      self.name = name
-
-    def __enter__(self):
-      if self.all._current != self:
-        self.all._sess.run(self.op)
-        self.all._current = self
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-      pass
 
 
 def main():
@@ -312,7 +266,7 @@ def main():
   learning_rate = 0.05
   n_steps = 200
   log_every = 20
-  optimizer = 'rms'
+  optimizer = 'adam'
 
   ## Parsing arguments
   parser = argparse.ArgumentParser(description='Training and testing with\
@@ -330,7 +284,7 @@ def main():
   parser.add_argument('-o', '--optimizer', default=optimizer,
       choices=['gd', 'rms', 'adagrad', 'adadelta', 'adam'],
       help='Name of the optimizer to use.\
-          See `help(maxout.select_optimizer)\' to know more.')
+          See `help(maxout._select_optimizer)\' to know more.')
   parser.add_argument('-p', '--parameters',
       nargs='+', metavar='PARAMETER',
       help='If the optimizer needs other arguments than just --rate,\

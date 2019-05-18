@@ -7,8 +7,10 @@ import tensorflow as tf
 
 import data
 import nets.example_net
+from tools import namespacelike
 
 
+@namespacelike
 class CGraph:
   '''\
   An object of this class, when instantiated, creates at tf.Graph for
