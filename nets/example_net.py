@@ -14,7 +14,7 @@ import tensorflow as tf
 from . import units
 
 
-def model(data, dropouts):
+def model(data, dropouts, seed=None):
   '''\
   Example of a feedforward net definition.
   Single maxout layer (no dropout).
@@ -22,6 +22,7 @@ def model(data, dropouts):
   Args:
     data: tensor of input features (batch_size, n_features)
     dropout: not used in this model
+    seed: seed for deterministic initialization of variables.
 
   Returns:
     array of shape (batch_size, classes) with logits of each class
@@ -33,7 +34,7 @@ def model(data, dropouts):
   n_channels = 2 # The minimum
 
   with tf.variable_scope('maxout1'):
-    logits = units.maxout_layer(data, n_classes, 2)
+    logits = units.maxout_layer(data, n_classes, 2, seed)
 
   logits = tf.identity(logits, name='logits')
 

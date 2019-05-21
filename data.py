@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def dataset(name, group, batch=None):
+def dataset(name, group, batch=None, seed=None):
   '''\
   Returns the Dataset. Both 'train' and 'test' dataset contain a group of
   elements: 'train' is repeated and shuffled, 'test' is the whole test set.
@@ -17,6 +17,7 @@ def dataset(name, group, batch=None):
     group: 'train' or 'test'.
     batch: how many samples to return. If None, the entire dataset is returned.
       None by default.
+    seed: seed for deterministic dataset permutation.
 
   Returns:
     a tf Dataset that contains groups of (features, label) pairs
@@ -38,7 +39,7 @@ def dataset(name, group, batch=None):
 
   # Input pipeline
   if group == 'train':
-    data = data.shuffle(min(size, 10000)) # perfect shuffling up to 10000
+    data = data.shuffle(min(size, 10000), seed=seed) # shuffle up to 10000
     data = data.repeat()                  # infinite repetition
     data = data.batch(batch)              # batches
     data = data.prefetch(1)               # also fetch next batch

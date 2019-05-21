@@ -26,7 +26,7 @@ class CGraph:
     use_test_data: use this op to read the test set
   '''
 
-  def __init__(self, dataset, batch=None):
+  def __init__(self, dataset, batch=None, seed=None):
     '''\
     Create the graph and save useful tensors.
 
@@ -34,17 +34,18 @@ class CGraph:
       dataset: The name of the dataset to use. Each dataset has its own net.
       batch: Batch size in int, or None to use the full dataset. None by
         default.
+      seed: constant seed for repeatable results.
     '''
     
     # Create new
     graph = tf.Graph()
     with graph.as_default():
-    
+
       # Input block
       with tf.name_scope('input'):
 
         # Dataset objects
-        data_train = data.dataset(dataset, 'train', batch)
+        data_train = data.dataset(dataset, 'train', batch, seed)
         data_test = data.dataset(dataset, 'test')
 
         # Iterator for both datasets
@@ -66,7 +67,7 @@ class CGraph:
 
         # Model
         if dataset == 'example':
-          logits = nets.example_net.model(features, dropouts)
+          logits = nets.example_net.model(features, dropouts, seed)
         else:
           raise ValueError(dataset + ' is not a valid dataset')
       

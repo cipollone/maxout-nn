@@ -9,9 +9,6 @@ different Maxout networks.
 # NOTE: using default variables regularization
 # NOTE: what about validation set?
 
-# TODO: debug batch. Training do not work well if batch < size. Are all batches
-# of the same size?
-
 import os
 import argparse
 import shutil
@@ -47,10 +44,14 @@ def training(args):
     steps_range = range(last_step+1, last_step+args.steps+1)
 
   # Instantiate the graph
-  graph = CGraph(args.dataset, args.batch)
+  graph = CGraph(args.dataset, args.batch, args.seed)
 
   # Use it
   with graph.graph.as_default():
+
+    # Constant seed for debugging
+    if args.seed:
+      tf.set_random_seed(args.seed)
 
     # Optimizer
     optimizer = _select_optimizer(args)
@@ -267,6 +268,7 @@ def main():
   n_steps = 200
   log_every = 20
   optimizer = 'adam'
+  seed = 4134631
 
   ## Parsing arguments
   parser = argparse.ArgumentParser(description='Training and testing with\
@@ -298,6 +300,8 @@ def main():
       help='Dropout probability: drop probability for input and hidden units.')
   parser.add_argument('-b', '--batch', type=int, 
       help='Batch size. Without this parameter, the whole dataset is used.')
+  parser.add_argument('--pseudorand', action='store_const', const=seed,
+      dest='seed', help='Always use the same seed for reproducible results')
 
   args = parser.parse_args()
 
