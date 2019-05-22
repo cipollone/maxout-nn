@@ -1,43 +1,65 @@
 '''\
-This module defines different tf.Graph(s) for classification, depending on the
-dataset.
+This module defines a tf.Graph for classification. Depending on the dataset,
+inputs and net change. The models are clear in Tensorboard.
 '''
 
 import tensorflow as tf
 
 import data
 import nets.example_net
+from tools import namespacelike
 
 
+@namespacelike
 class CGraph:
   '''\
   An object of this class, when instantiated, creates at tf.Graph for
   classification. Most parts of the net may change, but the outer structure
-  is the same. The members are useful tf objects:
+  is the same. The members are useful tf Tensors:
     graph: a tf.Graph
-    input_ph: the input placeholder
-    labels_ph: the labels placeholder
     output: the predicted output
     loss: the loss
     errors: number of wrong predictions
     dropouts: list two dropout-rate placeholders for input and hidden units
     accuracy: accuracy tensor
+    use_train_data: use this op to read the training set
+    use_val_data: use this op to read the validation set
+    use_test_data: use this op to read the test set
   '''
 
-  def __init__(self, dataset):
+  def __init__(self, dataset, batch=None, seed=None):
     '''\
     Create the graph and save useful tensors.
 
     Args:
       dataset: The name of the dataset to use. Each dataset has its own net.
+      batch: Batch size in int, or None to use the full dataset. None by
+        default.
+      seed: constant seed for repeatable results.
     '''
     
     # Create new
     graph = tf.Graph()
     with graph.as_default():
-    
-      # Input
-      (input_ph, labels_ph) = data.placeholder(dataset)
+
+      # Input block
+      with tf.name_scope('input'):
+
+        # Dataset objects
+        data_train = data.dataset(dataset, 'train', batch, seed)
+        data_val = data.dataset(dataset, 'val')
+        data_test = data.dataset(dataset, 'test')
+
+        # Iterator for both datasets
+        iterator = data.iterator(dataset)
+        use_train_data = iterator.make_initializer(data_train,name='use_train')
+        use_val_data = iterator.make_initializer(data_val,name='use_val')
+        use_test_data = iterator.make_initializer(data_test,name='use_test')
+
+        (features, labels) = iterator.get_next(name='GetInput')
+
+      features = tf.identity(features, name='features')
+      labels = tf.identity(labels, name='labels')
     
       # Net
       with tf.variable_scope('net'):
@@ -48,7 +70,7 @@ class CGraph:
 
         # Model
         if dataset == 'example':
-          logits = nets.example_net.model(input_ph, dropouts)
+          logits = nets.example_net.model(features, dropouts, seed)
         else:
           raise ValueError(dataset + ' is not a valid dataset')
       
@@ -61,10 +83,10 @@ class CGraph:
 
         # Loss
         loss = tf.losses.sparse_softmax_cross_entropy(
-            labels=labels_ph, logits=logits)
+            labels=labels, logits=logits)
 
         # Errors and accuracy
-        diff = tf.not_equal(output, labels_ph)
+        diff = tf.not_equal(output, labels)
         errors = tf.reduce_sum(tf.cast(diff, tf.int32))
         accuracy = 1 - errors/tf.size(diff)
 
@@ -75,11 +97,11 @@ class CGraph:
 
     # Save
     self.graph = graph
-    self.input_ph = input_ph
-    self.labels_ph = labels_ph
     self.output = output
     self.loss = loss
     self.errors = errors
     self.dropouts = dropouts
     self.accuracy = accuracy
-
+    self.use_train_data = use_train_data
+    self.use_val_data = use_val_data
+    self.use_test_data = use_test_data

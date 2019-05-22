@@ -1,2 +1,2 @@
 This directory is for Tensorboard logs.
-When a new model is trained, train/ and test/ are deleted.
+When a new model is trained, train/ and val/ are deleted.

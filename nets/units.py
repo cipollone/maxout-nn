@@ -5,7 +5,7 @@ Definition of the maxout layer.
 import tensorflow as tf
 
 
-def maxout_layer(x, out_size, ch_size):
+def maxout_layer(x, out_size, ch_size, seed=None):
   '''\
   Computes the maxout units for inputs x. This function defines tf opterations
   that compute the maxout layer: linear + max.
@@ -14,16 +14,20 @@ def maxout_layer(x, out_size, ch_size):
     x: input vectors. Shape (batch_size, n_features) (N x d in paper)
     out_size: output length (m in paper)
     ch_size: number of channels to use (k in paper)
+    seed: seed for deterministic initialization of variables.
 
   Returns:
     a tensor in output
   '''
 
   in_size = int(x.shape[1])
+  
+  # Initializer
+  init = tf.glorot_uniform_initializer(seed) if seed else None
 
   # Parameters
-  W = tf.get_variable('W', shape=(ch_size, in_size, out_size))
-  b = tf.get_variable('b', shape=(ch_size, out_size))
+  W = tf.get_variable('W', shape=(ch_size, in_size, out_size), initializer=init)
+  b = tf.get_variable('b', shape=(ch_size, out_size), initializer=init)
 
   # Affine maps (multiply a whole batch in one step)
   z = tf.einsum('id,kdm->ikm', x, W) + b

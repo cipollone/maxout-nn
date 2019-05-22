@@ -15,7 +15,7 @@ import shutil
 import tensorflow as tf
 
 from graphs import CGraph
-import data
+from tools import RunContexts
 
 
 def training(args):
@@ -32,37 +32,38 @@ def training(args):
   # Start or continue? Check directories and set iteration range
   if not args.cont:
     # Start from scratch
-    clear_saved(args.dataset)
+    _clear_saved(args.dataset)
     steps_range = range(1, args.steps + 1)
   else:
     # Continue
-    if os.path.exists('logs/train') or os.path.exists('logs/test'):
+    if os.path.exists('logs/train') or os.path.exists('logs/val'):
       raise FileExistsError(
-        "Move 'logs/train' and 'logs/test' if you want to continue.")
+        "Move 'logs/train' and 'logs/val' if you want to continue.")
     with open('logs/last_step.txt') as step_f:
       last_step = int(step_f.read())
     steps_range = range(last_step+1, last_step+args.steps+1)
 
   # Instantiate the graph
-  graph = CGraph(args.dataset)
+  graph = CGraph(args.dataset, args.batch, args.seed)
 
   # Use it
   with graph.graph.as_default():
 
-    # Add the optimizer
-    optimizer = select_optimizer(args)
+    # Constant seed for debugging
+    if args.seed:
+      tf.set_random_seed(args.seed)
+
+    # Optimizer
+    optimizer = _select_optimizer(args)
     minimize = optimizer.minimize(graph.loss)
 
-    # Init
-    init = tf.global_variables_initializer()
-    
     # Logger
     tf.summary.scalar('loss', graph.loss)
     tf.summary.scalar('accuracy', graph.accuracy)
     summaries_op = tf.summary.merge_all()
 
     train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
-    test_writer = tf.summary.FileWriter('logs/test', graph=graph.graph)
+    val_writer = tf.summary.FileWriter('logs/val', graph=graph.graph)
 
     # Saver
     saver = tf.train.Saver(max_to_keep=3)
@@ -72,51 +73,49 @@ def training(args):
 
       # Initialize variables
       if not args.cont: # First time
-        sess.run(init)
+        sess.run(tf.global_variables_initializer())
       else:             # Continue
         checkpoint = tf.train.latest_checkpoint(
             checkpoint_dir=os.path.join('models',args.dataset))
         saver.restore(sess, checkpoint)
         print('| Variables restored.')
 
-      # Load dataset once
-      (data_train, data_test) = data.load(args.dataset)
+      # Create contexts
+      contexts = RunContexts(sess, train_set=graph.use_train_data,
+          val_set=graph.use_val_data)
 
       # Main loop
       for step in steps_range:
 
         # Train
-        sess.run( minimize,
-            feed_dict={
-              graph.input_ph: data_train[0],
-              graph.labels_ph: data_train[1],
-              graph.dropouts[0]: args.dropout[0],
-              graph.dropouts[1]: args.dropout[1],
-            })
+        with contexts.train_set:
+          sess.run( minimize,
+              feed_dict={
+                graph.dropouts[0]: args.dropout[0],
+                graph.dropouts[1]: args.dropout[1],
+              })
 
         # Every log_every steps or at the end
         if step % args.log_every == 0 or step == steps_range.stop-1:
 
-          # Test on train set and test set
-          train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
-              feed_dict={
-                graph.input_ph: data_train[0],
-                graph.labels_ph: data_train[1],
-                graph.dropouts[0]: 0,
-                graph.dropouts[1]: 0,
-              })
-          test_loss, test_summaries = sess.run( (graph.loss, summaries_op),
-              feed_dict={
-                graph.input_ph: data_test[0],
-                graph.labels_ph: data_test[1],
-                graph.dropouts[0]: 0,
-                graph.dropouts[1]: 0,
-              })
+          # Test on train set and validation set
+          with contexts.train_set:
+            train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
+                feed_dict={
+                  graph.dropouts[0]: 0,
+                  graph.dropouts[1]: 0,
+                })
+          with contexts.val_set:
+            val_loss, val_summaries = sess.run( (graph.loss, summaries_op),
+                feed_dict={
+                  graph.dropouts[0]: 0,
+                  graph.dropouts[1]: 0,
+                })
 
           # Log
           print('| Step: ' + str(step) + ', train loss: ' + str(train_loss))
           train_writer.add_summary(train_summaries, step)
-          test_writer.add_summary(test_summaries, step)
+          val_writer.add_summary(val_summaries, step)
 
           # Save parameters
           model_name = 'model-step{}'.format(step)
@@ -126,7 +125,6 @@ def training(args):
           with open('logs/last_step.txt', 'wt') as step_f:
             step_f.write(str(step))
           
-
 
 def testing(args):
   '''\
@@ -158,16 +156,16 @@ def testing(args):
           checkpoint_dir=os.path.join('models',args.dataset))
       saver.restore(sess, checkpoint)
 
-      # Run
-      _, (features_test, labels_test) = data.load(args.dataset)
+      # Create context
+      contexts = RunContexts(sess, test_set=graph.use_test_data)
 
-      output,loss,errors = sess.run( (graph.output, graph.loss, graph.errors),
-          feed_dict={
-            graph.input_ph: features_test,
-            graph.labels_ph: labels_test,
-            graph.dropouts[0]: 0,
-            graph.dropouts[1]: 0,
-          })
+      # Predict
+      with contexts.test_set:
+        output,loss,errors = sess.run( (graph.output,graph.loss,graph.errors),
+            feed_dict={
+              graph.dropouts[0]: 0,
+              graph.dropouts[1]: 0,
+            })
 
       # Out
       print('| Predicted:', output)
@@ -183,52 +181,14 @@ def debug(args):
   # Prints
   print('| Debug')
 
-  # Instantiate the graph
-  graph = CGraph(args.dataset)
-  g = graph.graph
 
-  # Use it
-  with graph.graph.as_default():
-    
-    # Create a Saver
-    saver = tf.train.Saver()
-
-    # Run
-    with tf.Session() as sess:
-
-      # Restore parameters
-      checkpoint = tf.train.latest_checkpoint(
-          checkpoint_dir=os.path.join('models',args.dataset))
-      saver.restore(sess, checkpoint)
-
-      # Get tensors
-      mul = g.get_tensor_by_name('net/maxout1/einsum/transpose_2:0')
-      affine = g.get_tensor_by_name('net/maxout1/add:0')
-      maxout = g.get_tensor_by_name('net/maxout1/Max:0')
-      x = g.get_tensor_by_name('input_features:0')
-      with tf.variable_scope('', reuse=True):
-        W = tf.get_variable('net/maxout1/W')
-        b = tf.get_variable('net/maxout1/b')
-
-      # Run
-      _, (features_test, labels_test) = data.load(args.dataset)
-
-      ret = sess.run( (W, b, x, mul, affine, maxout),
-          feed_dict={
-            graph.input_ph: features_test[0:2],
-            graph.labels_ph: labels_test[0:2],
-            graph.dropouts[0]: 0,
-            graph.dropouts[1]: 0,
-          })
-
-      # Out
-      for (name, val) in zip(('W','b','x','mul','affine','maxout'), ret):
-        print(name,':',val)
+  import pdb
+  pdb.set_trace()
 
 
-def clear_saved(dataset):
+def _clear_saved(dataset):
   '''\
-  Removes all files from 'models/<dataset>/', 'logs/train' and 'logs/test'.
+  Removes all files from 'models/<dataset>/', 'logs/train' and 'logs/val'.
   Ask for confirmation at terminal.
 
   Args:
@@ -242,8 +202,8 @@ def clear_saved(dataset):
   # To remove
   join = os.path.join
   model = join('models', dataset)
-  logs = (join('logs','train'), join('logs','test'))
-  paths = (model,) + logs
+  logs = [join('logs',x) for x in ['train','val','debug']]
+  paths = [model] + logs
 
   # Rm
   for p in paths:
@@ -251,7 +211,7 @@ def clear_saved(dataset):
       shutil.rmtree(p)
 
 
-def select_optimizer(args):
+def _select_optimizer(args):
   '''\
   Returns a tf optimizer, initialized with options. See the tf api of these
   optimizers to see what options are available for each one.
@@ -292,7 +252,7 @@ def select_optimizer(args):
     opt = tf.train.AdamOptimizer(args.rate, **params)
   else:
     raise ValueError(args.optimizer+
-      ' is not an optimizer. See help(maxout.select_optimizer)')
+      ' is not an optimizer. See help(maxout._select_optimizer)')
 
   print('| Using', opt.get_name())
   return opt
@@ -307,7 +267,8 @@ def main():
   learning_rate = 0.05
   n_steps = 200
   log_every = 20
-  optimizer = 'rms'
+  optimizer = 'adam'
+  seed = 4134631
 
   ## Parsing arguments
   parser = argparse.ArgumentParser(description='Training and testing with\
@@ -325,7 +286,7 @@ def main():
   parser.add_argument('-o', '--optimizer', default=optimizer,
       choices=['gd', 'rms', 'adagrad', 'adadelta', 'adam'],
       help='Name of the optimizer to use.\
-          See `help(maxout.select_optimizer)\' to know more.')
+          See `help(maxout._select_optimizer)\' to know more.')
   parser.add_argument('-p', '--parameters',
       nargs='+', metavar='PARAMETER',
       help='If the optimizer needs other arguments than just --rate,\
@@ -337,6 +298,10 @@ def main():
   parser.add_argument('--dropout', type=float, nargs=2, metavar=('input_rate',
       'hidden_rate'),
       help='Dropout probability: drop probability for input and hidden units.')
+  parser.add_argument('-b', '--batch', type=int, 
+      help='Batch size. Without this parameter, the whole dataset is used.')
+  parser.add_argument('--pseudorand', action='store_const', const=seed,
+      dest='seed', help='Always use the same seed for reproducible results')
 
   args = parser.parse_args()
 
