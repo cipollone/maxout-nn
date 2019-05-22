@@ -7,7 +7,7 @@ different Maxout networks.
 
 # NOTE: using default variables initialization
 # NOTE: using default variables regularization
-# NOTE: what about validation set?
+
 
 import os
 import argparse
@@ -36,9 +36,9 @@ def training(args):
     steps_range = range(1, args.steps + 1)
   else:
     # Continue
-    if os.path.exists('logs/train') or os.path.exists('logs/test'):
+    if os.path.exists('logs/train') or os.path.exists('logs/val'):
       raise FileExistsError(
-        "Move 'logs/train' and 'logs/test' if you want to continue.")
+        "Move 'logs/train' and 'logs/val' if you want to continue.")
     with open('logs/last_step.txt') as step_f:
       last_step = int(step_f.read())
     steps_range = range(last_step+1, last_step+args.steps+1)
@@ -63,7 +63,7 @@ def training(args):
     summaries_op = tf.summary.merge_all()
 
     train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
-    test_writer = tf.summary.FileWriter('logs/test', graph=graph.graph)
+    val_writer = tf.summary.FileWriter('logs/val', graph=graph.graph)
 
     # Saver
     saver = tf.train.Saver(max_to_keep=3)
@@ -82,7 +82,7 @@ def training(args):
 
       # Create contexts
       contexts = RunContexts(sess, train_set=graph.use_train_data,
-          test_set=graph.use_test_data)
+          val_set=graph.use_val_data)
 
       # Main loop
       for step in steps_range:
@@ -98,15 +98,15 @@ def training(args):
         # Every log_every steps or at the end
         if step % args.log_every == 0 or step == steps_range.stop-1:
 
-          # Test on train set and test set
+          # Test on train set and validation set
           with contexts.train_set:
             train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
                 feed_dict={
                   graph.dropouts[0]: 0,
                   graph.dropouts[1]: 0,
                 })
-          with contexts.test_set:
-            test_loss, test_summaries = sess.run( (graph.loss, summaries_op),
+          with contexts.val_set:
+            val_loss, val_summaries = sess.run( (graph.loss, summaries_op),
                 feed_dict={
                   graph.dropouts[0]: 0,
                   graph.dropouts[1]: 0,
@@ -115,7 +115,7 @@ def training(args):
           # Log
           print('| Step: ' + str(step) + ', train loss: ' + str(train_loss))
           train_writer.add_summary(train_summaries, step)
-          test_writer.add_summary(test_summaries, step)
+          val_writer.add_summary(val_summaries, step)
 
           # Save parameters
           model_name = 'model-step{}'.format(step)
@@ -188,7 +188,7 @@ def debug(args):
 
 def _clear_saved(dataset):
   '''\
-  Removes all files from 'models/<dataset>/', 'logs/train' and 'logs/test'.
+  Removes all files from 'models/<dataset>/', 'logs/train' and 'logs/val'.
   Ask for confirmation at terminal.
 
   Args:
@@ -202,7 +202,7 @@ def _clear_saved(dataset):
   # To remove
   join = os.path.join
   model = join('models', dataset)
-  logs = [join('logs',x) for x in ['train','test','debug']]
+  logs = [join('logs',x) for x in ['train','val','debug']]
   paths = [model] + logs
 
   # Rm

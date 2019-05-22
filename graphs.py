@@ -23,6 +23,7 @@ class CGraph:
     dropouts: list two dropout-rate placeholders for input and hidden units
     accuracy: accuracy tensor
     use_train_data: use this op to read the training set
+    use_val_data: use this op to read the validation set
     use_test_data: use this op to read the test set
   '''
 
@@ -46,11 +47,13 @@ class CGraph:
 
         # Dataset objects
         data_train = data.dataset(dataset, 'train', batch, seed)
+        data_val = data.dataset(dataset, 'val')
         data_test = data.dataset(dataset, 'test')
 
         # Iterator for both datasets
         iterator = data.iterator(dataset)
         use_train_data = iterator.make_initializer(data_train,name='use_train')
+        use_val_data = iterator.make_initializer(data_val,name='use_val')
         use_test_data = iterator.make_initializer(data_test,name='use_test')
 
         (features, labels) = iterator.get_next(name='GetInput')
@@ -100,4 +103,5 @@ class CGraph:
     self.dropouts = dropouts
     self.accuracy = accuracy
     self.use_train_data = use_train_data
+    self.use_val_data = use_val_data
     self.use_test_data = use_test_data

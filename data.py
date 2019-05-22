@@ -1,6 +1,6 @@
 '''\
 Dataset loading module. See maxout -h for a list of the supported datasets.
-Using the same reinitializable iterator with train and test datasets.
+Using the same reinitializable iterator for all splits.
 '''
 
 import numpy as np
@@ -9,14 +9,14 @@ import tensorflow as tf
 
 def dataset(name, group, batch=None, seed=None):
   '''\
-  Returns the Dataset. Both 'train' and 'test' dataset contain a group of
-  elements: 'train' is repeated and shuffled, 'test' is the whole test set.
+  Returns the Dataset. 'train', 'val' and 'test' datasets contain the same type
+  of elements. However, 'train' is also repeated and shuffled. 'val' and 'test'
+  are always returned as whole, 'train' can be divided in batches.
 
   Args:
     name: name of the dataset to use.
-    group: 'train' or 'test'.
+    group: 'train' 'val' or 'test'.
     batch: how many samples to return. If None, the entire dataset is returned.
-      None by default.
     seed: seed for deterministic dataset permutation.
 
   Returns:
@@ -24,8 +24,8 @@ def dataset(name, group, batch=None, seed=None):
   '''
 
   # Check
-  if not group in ('train','test'):
-    raise ValueError("Group must be 'train' or 'test'")
+  if not group in ('train','val','test'):
+    raise ValueError("Group must be 'train', 'val' or 'test'")
 
   # Create
   if name == 'example':
@@ -82,6 +82,9 @@ def _iris_dataset(group):
   if group == 'train':
     x = np.genfromtxt('datasets/IRIS/iris_train_features.csv',delimiter=',')
     y = np.genfromtxt('datasets/IRIS/iris_train_labels.csv',delimiter=',')
+  elif group == 'val':
+    x = np.genfromtxt('datasets/IRIS/iris_val_features.csv',delimiter=',')
+    y = np.genfromtxt('datasets/IRIS/iris_val_labels.csv',delimiter=',')
   else:
     x = np.genfromtxt('datasets/IRIS/iris_test_features.csv',delimiter=',')
     y = np.genfromtxt('datasets/IRIS/iris_test_labels.csv',delimiter=',')
