@@ -7,6 +7,7 @@ import tensorflow as tf
 
 import data
 import nets.example_net
+import nets.mnist_net
 from tools import namespacelike
 
 
@@ -71,6 +72,8 @@ class CGraph:
         # Model
         if dataset == 'example':
           logits = nets.example_net.model(features, dropouts, seed)
+        elif dataset == 'mnist':
+          logits = nets.mnist_net.model(features, dropouts, seed)
         else:
           raise ValueError(dataset + ' is not a valid dataset')
       

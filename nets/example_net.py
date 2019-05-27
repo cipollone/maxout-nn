@@ -34,7 +34,7 @@ def model(data, dropouts, seed=None):
   n_channels = 2 # The minimum
 
   with tf.variable_scope('maxout1'):
-    logits = units.maxout_layer(data, n_classes, 2, seed)
+    logits = units.maxout_layer(data, n_classes, n_channels, seed)
 
   logits = tf.identity(logits, name='logits')
 
