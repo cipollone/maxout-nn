@@ -5,6 +5,7 @@ Using the same reinitializable iterator for all splits.
 
 import numpy as np
 import tensorflow as tf
+import struct
 
 
 def dataset(name, group, batch=None, seed=None):
@@ -30,6 +31,8 @@ def dataset(name, group, batch=None, seed=None):
   # Create
   if name == 'example':
     (data, size) = _iris_dataset(group)
+  elif name == 'mnist':
+    (data, size) = _mnist_dataset(group)
   else:
     raise ValueError(name + ' is not a valid dataset')
   
@@ -66,8 +69,65 @@ def iterator(name):
 
   if name == 'example':
     return _iris_iterator()
+  elif name == 'mnist':
+    return _mnist_iterator()
   else:
     raise ValueError(name + ' is not a valid dataset')
+
+
+def _mnist_dataset(group):
+
+  # This dataset is small enough to be loaded all at once
+  
+  # Read files # TODO: add a validation split
+  if group == 'train':
+    my_images, my_labels = _read_mnist(
+        "datasets/MNIST/train-images-idx3-ubyte",
+        "datasets/MNIST/train-labels-idx1-ubyte")
+  else:
+    my_images, my_labels = _read_mnist(
+        "datasets/MNIST/t10k-images-idx3-ubyte",
+        "datasets/MNIST/t10k-labels-idx1-ubyte")
+
+  # Normalize images in [0,1]
+  my_images = my_images/255.0
+
+  #to TF
+  n = my_labels.shape[0]
+  my_images = tf.constant(my_images, dtype=tf.float32, name='features')
+  my_labels = tf.constant(my_labels, dtype=tf.int32, name='labels')
+
+  data = tf.data.Dataset.from_tensor_slices((my_images, my_labels))
+  return (data, n)
+
+
+def _read_mnist(images_name, labels_name):
+
+  with open(labels_name, 'rb') as lab:
+    magic, n = struct.unpack('>II',lab.read(8))
+    labels = np.fromfile(lab, dtype=np.uint8)
+
+  with open(images_name, "rb") as img:
+    magic, num, rows, cols = struct.unpack(">IIII",img.read(16))
+    images = np.fromfile( img, dtype=np.uint8).reshape(len(labels), 784)
+
+  ## image plot example
+  #my_img = np.reshape(my_img,(28,28))
+  #plt.imshow(my_img)
+  #plt.show()
+
+  return images,labels
+
+
+def _mnist_iterator():
+  '''\
+  See iterator().
+  '''
+
+  return tf.data.Iterator.from_structure(
+      output_types = (tf.float32, tf.int32),
+      output_shapes = ((None,784), (None,)),
+      shared_name='MNIST_iterator')
 
 
 def _iris_dataset(group):
@@ -108,4 +168,3 @@ def _iris_iterator():
       output_types = (tf.float32, tf.int32),
       output_shapes = ((None,4), (None,)),
       shared_name='Iris_iterator')
-
