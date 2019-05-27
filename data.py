@@ -5,7 +5,7 @@ Using the same reinitializable iterator for all splits.
 
 import numpy as np
 import tensorflow as tf
-
+import mnistData
 
 def dataset(name, group, batch=None, seed=None):
   '''\
@@ -30,9 +30,11 @@ def dataset(name, group, batch=None, seed=None):
   # Create
   if name == 'example':
     (data, size) = _iris_dataset(group)
+  elif name=='mnist':
+      data = _mnist_dataset(group)
   else:
     raise ValueError(name + ' is not a valid dataset')
-  
+
   # Select batch
   if not batch or batch < 1 or batch > size :
     batch = size
@@ -66,8 +68,38 @@ def iterator(name):
 
   if name == 'example':
     return _iris_iterator()
+  elif name == 'mnist':
+    return _mnist_iterator()
   else:
     raise ValueError(name + ' is not a valid dataset')
+
+def _mnist_dataset(group):
+
+  
+  # Read files
+  if group == 'train':
+    my_images, my_labels = mnistData.read_mnist("datasets/MNIST/train-images-idx3-ubyte", "datasets/MNIST/train-labels-idx1-ubyte")
+  else:
+    my_images, my_labels = mnistData.read_mnist("datasets/MNIST/t10k-images-idx3-ubyte", "datasets/MNIST/t10k-labels-idx1-ubyte")
+
+  
+  #to TF
+  my_images = tf.constant(my_images, dtype=tf.int32, name='features')
+  my_labels = tf.constant(my_labels, dtype=tf.int32, name='labels')
+
+  data = tf.data.Dataset.from_tensor_slices((my_images, my_labels))
+  return data
+
+def _mnist_iterator():
+  '''\
+  See iterator().
+  '''
+
+  return tf.data.Iterator.from_structure(
+      output_types = (tf.int32, tf.int32),
+      output_shapes = ((None,784), (None,)),
+      shared_name='MNIST_iterator')
+
 
 
 def _iris_dataset(group):
@@ -93,7 +125,7 @@ def _iris_dataset(group):
   n = y.size
   x = tf.constant(x, dtype=tf.float32, name='features')
   y = tf.constant(y, dtype=tf.int32, name='labels')
-  
+
   # Return dataset
   data = tf.data.Dataset.from_tensor_slices((x,y))
   return (data, n)
@@ -108,4 +140,3 @@ def _iris_iterator():
       output_types = (tf.float32, tf.int32),
       output_shapes = ((None,4), (None,)),
       shared_name='Iris_iterator')
-

@@ -276,7 +276,7 @@ def main():
   parser.add_argument('op', choices=['train','test','debug'],
       help='What to do with the net. Most options only affect training.')
   parser.add_argument('-d', '--dataset', default='example',
-      choices=['example'], help='Which dataset to load')
+      choices=['example','mnist'], help='Which dataset to load')
   parser.add_argument('-r', '--rate', type=float, default=learning_rate,
       help='Learning rate / step size. Depends on the optimizer.')
   parser.add_argument('-s', '--steps', type=int, default=n_steps,
