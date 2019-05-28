@@ -116,6 +116,8 @@ def training(args):
           print('| Step: ' + str(step) + ', train loss: ' + str(train_loss))
           train_writer.add_summary(train_summaries, step)
           val_writer.add_summary(val_summaries, step)
+          train_writer.flush()
+          val_writer.flush()
 
           # Save parameters
           model_name = 'model-step{}'.format(step)
@@ -137,7 +139,9 @@ def testing(args):
       options.
   '''
 
+  # Prints
   print('| Testing')
+  print('| Dataset:', args.dataset)
 
   # Instantiate the graph
   graph = CGraph(args.dataset)
@@ -161,7 +165,8 @@ def testing(args):
 
       # Predict
       with contexts.test_set:
-        output,loss,errors = sess.run( (graph.output,graph.loss,graph.errors),
+        output, loss, accuracy = sess.run(
+            (graph.output, graph.loss, graph.accuracy),
             feed_dict={
               graph.dropouts[0]: 0,
               graph.dropouts[1]: 0,
@@ -169,8 +174,8 @@ def testing(args):
 
       # Out
       print('| Predicted:', output)
+      print('| Accuracy:', accuracy)
       print('| Loss:', loss)
-      print('| Errors:', errors)
 
 
 def debug(args):
@@ -269,13 +274,14 @@ def main():
   log_every = 20
   optimizer = 'adam'
   seed = 4134631
+  dataset = 'mnist'
 
   ## Parsing arguments
   parser = argparse.ArgumentParser(description='Training and testing with\
       the Maxout network')
   parser.add_argument('op', choices=['train','test','debug'],
       help='What to do with the net. Most options only affect training.')
-  parser.add_argument('-d', '--dataset', default='example',
+  parser.add_argument('-d', '--dataset', default=dataset,
       choices=['example','mnist'], help='Which dataset to load')
   parser.add_argument('-r', '--rate', type=float, default=learning_rate,
       help='Learning rate / step size. Depends on the optimizer.')

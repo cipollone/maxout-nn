@@ -79,20 +79,24 @@ def _mnist_dataset(group):
 
   # This dataset is small enough to be loaded all at once
   
-  # Read files # TODO: add a validation split
+  # Read files
   if group == 'train':
     my_images, my_labels = _read_mnist(
-        "datasets/MNIST/train-images-idx3-ubyte",
-        "datasets/MNIST/train-labels-idx1-ubyte")
+        "datasets/MNIST/train-55k-images-idx3-ubyte",
+        "datasets/MNIST/train-55k-labels-idx1-ubyte")
+  elif group == 'val':
+    my_images, my_labels = _read_mnist(
+        "datasets/MNIST/val-5k-images-idx3-ubyte",
+        "datasets/MNIST/val-5k-labels-idx1-ubyte")
   else:
     my_images, my_labels = _read_mnist(
-        "datasets/MNIST/t10k-images-idx3-ubyte",
-        "datasets/MNIST/t10k-labels-idx1-ubyte")
+        "datasets/MNIST/test-10k-images-idx3-ubyte",
+        "datasets/MNIST/test-10k-labels-idx1-ubyte")
 
   # Normalize images in [0,1]
   my_images = my_images/255.0
 
-  #to TF
+  # To TF
   n = my_labels.shape[0]
   my_images = tf.constant(my_images, dtype=tf.float32, name='features')
   my_labels = tf.constant(my_labels, dtype=tf.int32, name='labels')
