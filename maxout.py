@@ -63,7 +63,7 @@ def training(args):
     summaries_op = tf.summary.merge_all()
 
     train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
-    val_writer = tf.summary.FileWriter('logs/val', graph=graph.graph)
+    val_writer = tf.summary.FileWriter('logs/val')
 
     # Saver
     saver = tf.train.Saver(max_to_keep=3)
