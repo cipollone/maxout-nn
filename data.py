@@ -105,6 +105,8 @@ def _mnist_dataset(group):
   return (data, n)
 
 
+
+
 def _read_mnist(images_name, labels_name):
 
   with open(labels_name, 'rb') as lab:
@@ -121,6 +123,61 @@ def _read_mnist(images_name, labels_name):
   #plt.show()
 
   return images,labels
+
+
+def _cifar10_dataset(group):
+
+  # This dataset is small enough to be loaded all at once
+  
+  # Read files
+  if group == 'train':
+    my_images, my_labels = _read_cifar10(
+        "datasets/my_cifar/train_images.txt",
+        "datasets/my_cifar/train_labels.txt")
+  elif group == 'val':
+    my_images, my_labels = _read_cifar10(
+        "datasets/my_cifar/validation_images.txt",
+        "datasets/my_cifar/validation_labels.txt")
+  else:
+    my_images, my_labels = _read_cifar10(
+        "datasets/my_cifar/Image_TEST.txt",
+        "datasets/my_cifar/Label_TEST.txt")
+
+  # Normalize images in [0,1] 
+  #my_images = my_images/255.0
+
+  # To TF
+  n = my_labels.shape[0]
+  my_images = tf.constant(my_images, dtype=tf.int32, name='features')
+  my_labels = tf.constant(my_labels, dtype=tf.int32, name='labels')
+
+  data = tf.data.Dataset.from_tensor_slices((my_images, my_labels))
+  return (data, n)
+
+
+
+def _read_cifar10(images_name, labels_name):
+
+  with open(labels_name,"rb") as lab:
+
+    labels = np.fromfile(lab, dtype=np.uint8)
+
+  with open(images_name, "rb") as img:
+    
+    images = np.fromfile( img, dtype=np.uint8).reshape(len(labels), 3072)
+  
+  return images,labels
+
+
+def _cifar10_iterator():
+  '''\
+  See iterator().
+  '''
+
+  return tf.data.Iterator.from_structure(
+      output_types = (tf.float32, tf.int32),
+      output_shapes = ((None,3072), (None,)),
+      shared_name='cifar10_iterator')
 
 
 def _mnist_iterator():
