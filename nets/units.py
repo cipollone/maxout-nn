@@ -5,7 +5,7 @@ Definition of the maxout layer.
 import tensorflow as tf
 
 
-def maxout_layer(x, out_size, ch_size, seed=None):
+def maxout_layer(x, out_size, ch_size, seed=None, return_W=None):
   '''\
   Computes the maxout units for inputs x. This function defines tf opterations
   that compute the maxout layer: linear + max.
@@ -15,6 +15,7 @@ def maxout_layer(x, out_size, ch_size, seed=None):
     out_size: output length (m in paper)
     ch_size: number of channels to use (k in paper)
     seed: seed for deterministic initialization of variables.
+    return_W: if true, returns both the output and the W parameters.
 
   Returns:
     a tensor in output
@@ -35,7 +36,11 @@ def maxout_layer(x, out_size, ch_size, seed=None):
   # Max
   out = tf.reduce_max(z, axis=1)
 
-  return out
+  # Ret
+  if return_W:
+    return (out, W)
+  else:
+    return out
 
 
 def dense_layer(x, out_size, seed=None):

@@ -57,10 +57,13 @@ def training(args):
     optimizer = _select_optimizer(args)
     minimize = optimizer.minimize(graph.loss)
 
-    # Logger
+    # Tensorboard summaries
     tf.summary.scalar('loss', graph.loss)
     tf.summary.scalar('accuracy', graph.accuracy)
-    summaries_op = tf.summary.merge_all()
+    val_summaries_op = tf.summary.merge_all()
+    tf.summary.image('2-maxout:W', tf.get_collection('W_visualization')[0],
+        max_outputs=10)
+    train_summaries_op = tf.summary.merge_all()
 
     train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
     val_writer = tf.summary.FileWriter('logs/val')
@@ -100,13 +103,15 @@ def training(args):
 
           # Test on train set and validation set
           with contexts.train_set:
-            train_loss, train_summaries = sess.run( (graph.loss, summaries_op),
+            train_loss, train_summaries = sess.run(
+                (graph.loss, train_summaries_op),
                 feed_dict={
                   graph.dropouts[0]: 0,
                   graph.dropouts[1]: 0,
                 })
           with contexts.val_set:
-            val_loss, val_summaries = sess.run( (graph.loss, summaries_op),
+            val_loss, val_summaries = sess.run(
+                (graph.loss, val_summaries_op),
                 feed_dict={
                   graph.dropouts[0]: 0,
                   graph.dropouts[1]: 0,

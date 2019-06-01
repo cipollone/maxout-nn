@@ -24,15 +24,21 @@ def model(data, dropouts, seed=None):
 
   # Layer 1
   with tf.variable_scope('1-maxout'):
-    tensor = units.maxout_layer(tensor, out_size=20, ch_size=3, seed=seed)
+    (tensor,W1) = units.maxout_layer(tensor, out_size=100, ch_size=20,
+        seed=seed, return_W=True)
 
   # Dropout
   tensor = tf.nn.dropout(tensor, keep_prob=1-dropouts[1])
 
   # Layer 2
   with tf.variable_scope('2-maxout'):
-    tensor = units.maxout_layer(tensor, out_size=10, ch_size=3, seed=seed)
+    tensor = units.maxout_layer(tensor, out_size=10, ch_size=10, seed=seed)
 
   logits = tf.identity(tensor, name='logits')
+
+  # Debug
+  tensor = tf.reshape(tf.reduce_mean(W1, axis=0), shape=(28,28,-1,1))
+  tensor = tf.transpose(tensor, perm=(2,0,1,3))
+  tf.add_to_collection('W_visualization', tensor)
 
   return logits
