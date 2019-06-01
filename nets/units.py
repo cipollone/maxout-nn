@@ -26,8 +26,13 @@ def maxout_layer(x, out_size, ch_size, seed=None, return_W=None):
   # Initializer
   init = tf.glorot_uniform_initializer(seed) if seed else None
 
+  # Weights regularizer. l1/l2?
+  regularizer = lambda x: tf.reduce_sum(tf.abs(x))
+  #regularizer = tf.nn.l2_loss
+
   # Parameters
-  W = tf.get_variable('W', shape=(ch_size, in_size, out_size), initializer=init)
+  W = tf.get_variable('W', shape=(ch_size, in_size, out_size),
+      initializer=init, regularizer=regularizer)
   b = tf.get_variable('b', shape=(ch_size, out_size), initializer=init)
 
   # Affine maps (multiply a whole batch in one step)

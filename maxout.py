@@ -44,7 +44,7 @@ def training(args):
     steps_range = range(last_step+1, last_step+args.steps+1)
 
   # Instantiate the graph
-  graph = CGraph(args.dataset, args.batch, args.seed)
+  graph = CGraph(args.dataset, args.batch, args.seed, args.regularization)
 
   # Use it
   with graph.graph.as_default():
@@ -61,8 +61,9 @@ def training(args):
     tf.summary.scalar('loss', graph.loss)
     tf.summary.scalar('accuracy', graph.accuracy)
     val_summaries_op = tf.summary.merge_all()
-    tf.summary.image('2-maxout:W', tf.get_collection('W_visualization')[0],
-        max_outputs=10)
+    if args.dataset in ('mnist','cifar10'):
+      tf.summary.image('2-maxout:W', tf.get_collection('W_visualization')[0],
+          max_outputs=10)
     train_summaries_op = tf.summary.merge_all()
 
     train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
@@ -103,8 +104,8 @@ def training(args):
 
           # Test on train set and validation set
           with contexts.train_set:
-            train_loss, train_summaries = sess.run(
-                (graph.loss, train_summaries_op),
+            train_loss, train_regular_loss, train_summaries = sess.run(
+                (graph.loss, graph.regular_loss, train_summaries_op),
                 feed_dict={
                   graph.dropouts[0]: 0,
                   graph.dropouts[1]: 0,
@@ -118,7 +119,8 @@ def training(args):
                 })
 
           # Log
-          print('| Step: ' + str(step) + ', train loss: ' + str(train_loss))
+          print('| Step: ' + str(step) + ', train loss: ' + str(train_loss) +
+              ' ( reg_loss: ' + str(train_regular_loss) + ' )')
           train_writer.add_summary(train_summaries, step)
           val_writer.add_summary(val_summaries, step)
           train_writer.flush()
@@ -313,6 +315,8 @@ def main():
       help='Batch size. Without this parameter, the whole dataset is used.')
   parser.add_argument('--pseudorand', action='store_const', const=seed,
       dest='seed', help='Always use the same seed for reproducible results')
+  parser.add_argument('--regularization', type=float,
+      help='Regularization scale. 0 means no regularization')
 
   args = parser.parse_args()
 
