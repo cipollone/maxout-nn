@@ -35,6 +35,8 @@ def dataset(name, group, batch=None, seed=None):
     (data, size) = _iris_dataset(group)
   elif name == 'mnist':
     (data, size) = _mnist_dataset(group)
+  elif name == 'cifar10':
+    (data, size) = _cifar10_dataset(group)
   else:
     raise ValueError(name + ' is not a valid dataset')
   
@@ -73,6 +75,8 @@ def iterator(name):
     return _iris_iterator()
   elif name == 'mnist':
     return _mnist_iterator()
+  elif name == 'cifar10':
+    return _cifar10_iterator()
   else:
     raise ValueError(name + ' is not a valid dataset')
 
@@ -84,31 +88,31 @@ def _mnist_dataset(group):
   
   # Read files
   if group == 'train':
-    my_images, my_labels = _read_mnist(
+    images, labels = _read_mnist(
         "datasets/MNIST/train-55k-images-idx3-ubyte",
         "datasets/MNIST/train-55k-labels-idx1-ubyte")
   elif group == 'val':
-    my_images, my_labels = _read_mnist(
+    images, labels = _read_mnist(
         "datasets/MNIST/val-5k-images-idx3-ubyte",
         "datasets/MNIST/val-5k-labels-idx1-ubyte")
   else:
-    my_images, my_labels = _read_mnist(
+    images, labels = _read_mnist(
         "datasets/MNIST/test-10k-images-idx3-ubyte",
         "datasets/MNIST/test-10k-labels-idx1-ubyte")
 
   # Standardization
   if not _mnist_dataset.mean: # compute same for all splits
-    _mnist_dataset.mean = np.mean(my_images)
-    _mnist_dataset.std = np.std(my_images)
+    _mnist_dataset.mean = np.mean(images)
+    _mnist_dataset.std = np.std(images)
 
-  my_images = (my_images - _mnist_dataset.mean) / _mnist_dataset.std
+  images = (images - _mnist_dataset.mean) / _mnist_dataset.std
 
   # To TF
-  n = my_labels.shape[0]
-  my_images = tf.constant(my_images, dtype=tf.float32, name='features')
-  my_labels = tf.constant(my_labels, dtype=tf.int32, name='labels')
+  n = labels.shape[0]
+  images = tf.constant(images, dtype=tf.float32, name='features')
+  labels = tf.constant(labels, dtype=tf.int32, name='labels')
 
-  data = tf.data.Dataset.from_tensor_slices((my_images, my_labels))
+  data = tf.data.Dataset.from_tensor_slices((images, labels))
   return (data, n)
 
 
@@ -123,8 +127,8 @@ def _read_mnist(images_name, labels_name):
     images = np.fromfile( img, dtype=np.uint8).reshape(len(labels), 784)
 
   ## image plot example
-  #my_img = np.reshape(my_img,(28,28))
-  #plt.imshow(my_img)
+  #img = np.reshape(img,(28,28))
+  #plt.imshow(img)
   #plt.show()
 
   return images,labels
@@ -139,6 +143,61 @@ def _mnist_iterator():
       output_types = (tf.float32, tf.int32),
       output_shapes = ((None,784), (None,)),
       shared_name='MNIST_iterator')
+
+
+@with_persistent_vars(mean=None, std=None)
+def _cifar10_dataset(group):
+
+  # This dataset is small enough to be loaded all at once
+  
+  # Read files
+  if group == 'train':
+    images, labels = _read_cifar10("datasets/CIFAR-10/train_data.bin")
+  elif group == 'val':
+    images, labels = _read_cifar10("datasets/CIFAR-10/val_data.bin")
+  else:
+    images, labels = _read_cifar10("datasets/CIFAR-10/test.bin")
+
+  # Standardization
+  if not _cifar10_dataset.mean: # compute same for all splits
+    _cifar10_dataset.mean = np.mean(images)
+    _cifar10_dataset.std = np.std(images)
+
+  images = (images - _cifar10_dataset.mean) / _cifar10_dataset.std
+
+  # To TF
+  n = labels.shape[0]
+  images = tf.constant(images, dtype=tf.float32, name='features')
+  labels = tf.constant(labels, dtype=tf.int32, name='labels')
+
+  data = tf.data.Dataset.from_tensor_slices((images, labels))
+  return (data, n)
+
+
+def _read_cifar10(data_path):
+
+  # Load dataset
+  dataset = np.fromfile(data_path, dtype=np.uint8)
+  dataset = np.reshape(dataset, (-1, 1+3*32*32))   # label+channel*row*col
+  images = dataset[:,1:]
+  labels = dataset[:,0]
+
+  # Reshape images as 3D tensors
+  images = np.reshape(images, (-1, 3, 32, 32))     # batch, chs, rows, cols
+  images = np.transpose(images, (0, 2, 3, 1))      # batch, rows, cols, chs
+  
+  return images, labels
+
+
+def _cifar10_iterator():
+  '''\
+  See iterator().
+  '''
+
+  return tf.data.Iterator.from_structure(
+      output_types = (tf.float32, tf.int32),
+      output_shapes = ((None,32,32,3), (None,)),
+      shared_name='cifar10_iterator')
 
 
 def _iris_dataset(group):

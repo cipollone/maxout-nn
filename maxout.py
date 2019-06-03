@@ -8,6 +8,9 @@ different Maxout networks.
 # NOTE: using default variables initialization
 # NOTE: using default variables regularization
 
+# TODO: Debug memory use
+# TODO: Add convolution
+
 
 import os
 import argparse
@@ -27,7 +30,9 @@ def training(args):
       options.
   '''
 
+  # Prints
   print('| Training')
+  print('| Dataset:', args.dataset)
 
   # Start or continue? Check directories and set iteration range
   if not args.cont:
@@ -281,7 +286,7 @@ def main():
   log_every = 20
   optimizer = 'adam'
   seed = 4134631
-  dataset = 'mnist'
+  dataset = 'cifar10'
 
   ## Parsing arguments
   parser = argparse.ArgumentParser(description='Training and testing with\
@@ -289,7 +294,7 @@ def main():
   parser.add_argument('op', choices=['train','test','debug'],
       help='What to do with the net. Most options only affect training.')
   parser.add_argument('-d', '--dataset', default=dataset,
-      choices=['example','mnist'], help='Which dataset to load')
+      choices=['example','mnist','cifar10'], help='Which dataset to load')
   parser.add_argument('-r', '--rate', type=float, default=learning_rate,
       help='Learning rate / step size. Depends on the optimizer.')
   parser.add_argument('-s', '--steps', type=int, default=n_steps,

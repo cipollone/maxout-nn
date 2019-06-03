@@ -8,6 +8,7 @@ import tensorflow as tf
 import data
 import nets.example_net
 import nets.mnist_net
+import nets.cifar10_net
 from tools import namespacelike
 
 
@@ -77,6 +78,8 @@ class CGraph:
           logits, size = nets.example_net.model(features, dropouts, seed)
         elif dataset == 'mnist':
           logits, size = nets.mnist_net.model(features, dropouts, seed)
+        elif dataset == 'cifar10':
+          logits, size = nets.cifar10_net.model(features, dropouts, seed)
         else:
           raise ValueError(dataset + ' is not a valid dataset')
       

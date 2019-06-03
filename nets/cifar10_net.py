@@ -1,5 +1,5 @@
 '''\
-NN for the MNIST dataset.
+NN for the CIFAR-10 dataset.
 '''
 
 import tensorflow as tf
@@ -9,11 +9,10 @@ from . import units
 
 def model(data, dropouts, seed=None):
   '''\
-  FF Neural network for the MNIST dataset. Fully connected layers + softmax.
-  Using maxout units and dropouts.
+  FF Neural network for the CIFAR-10 dataset. Using maxout units and dropouts.
 
   Args:
-    data: tensor of input features (batch_size, 784 pixels/features)
+    data: tensor of input images (batch_size, 32 rows, 32 cols, 3 channels)
     dropouts: two scalar tensors that contains the dropout rate for input and
       hidden units.
     seed: seed for deterministic initialization of variables.
@@ -22,9 +21,14 @@ def model(data, dropouts, seed=None):
     logis: (batch_size, n_classes). n_classes=10
     n: size of the net. Number of weights.
   '''
-  
+
+  # NOTE: this is not the real net: just testing the dataset for now.
+
+  # Reshape to use the classic 1D maxout layer
+  tensor = tf.reshape(data, (-1, 32*32*3))
+
   # Sizes
-  d = 28*28
+  d = 32*32*3
   k1 = 30
   m1 = 20
   k2 = 2
@@ -32,7 +36,7 @@ def model(data, dropouts, seed=None):
   n = d*k1*m1 + m1*k2*m2 # Number of weights (no biases)
 
   # Input dropout
-  tensor = tf.nn.dropout(data, keep_prob=1-dropouts[0])
+  tensor = tf.nn.dropout(tensor, keep_prob=1-dropouts[0])
 
   # Layer 1
   with tf.variable_scope('1-maxout'):
@@ -50,8 +54,8 @@ def model(data, dropouts, seed=None):
 
   # Debug
   with tf.name_scope('visualizations'):
-    tensor = tf.reshape(tf.reduce_mean(W1, axis=0), shape=(28,28,-1,1))
-    tensor = tf.transpose(tensor, perm=(2,0,1,3))
+    tensor = tf.reshape(tf.reduce_mean(W1, axis=0), shape=(32, 32, 3, -1))
+    tensor = tf.transpose(tensor, perm=(3, 0, 1, 2))
     tf.add_to_collection('W_visualization', tensor)
 
   return logits, n
