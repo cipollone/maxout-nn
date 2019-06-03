@@ -19,6 +19,26 @@ def namespacelike(classN):
   return classN
 
 
+def with_persistent_vars(**variables):
+  '''\
+  Function decorator: initializes 'variables' as persistent/static variables
+  of this function. Use it as:
+
+    @with_persistent_vars(var1='value', var2=3)
+    def f():
+      pass
+
+  var1 and var2 can be accessed as f.var1, f.var2.
+  '''
+
+  def decorator(f):
+    for name in variables:
+      setattr(f, name, variables[name])
+    return f
+
+  return decorator
+
+
 @namespacelike
 class RunContexts:
   '''\

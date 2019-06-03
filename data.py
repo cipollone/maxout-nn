@@ -7,6 +7,8 @@ import numpy as np
 import tensorflow as tf
 import struct
 
+from tools import with_persistent_vars
+
 
 def dataset(name, group, batch=None, seed=None):
   '''\
@@ -75,6 +77,7 @@ def iterator(name):
     raise ValueError(name + ' is not a valid dataset')
 
 
+@with_persistent_vars(mean=None, std=None)
 def _mnist_dataset(group):
 
   # This dataset is small enough to be loaded all at once
@@ -93,8 +96,12 @@ def _mnist_dataset(group):
         "datasets/MNIST/test-10k-images-idx3-ubyte",
         "datasets/MNIST/test-10k-labels-idx1-ubyte")
 
-  # Normalize images in [0,1]
-  my_images = my_images/255.0
+  # Standardization
+  if not _mnist_dataset.mean: # compute same for all splits
+    _mnist_dataset.mean = np.mean(my_images)
+    _mnist_dataset.std = np.std(my_images)
+
+  my_images = (my_images - _mnist_dataset.mean) / _mnist_dataset.std
 
   # To TF
   n = my_labels.shape[0]

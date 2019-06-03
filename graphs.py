@@ -20,6 +20,7 @@ class CGraph:
     graph: a tf.Graph
     output: the predicted output
     loss: the loss
+    regular_loss: regulatization loss (this is also included in loss)
     errors: number of wrong predictions
     dropouts: list two dropout-rate placeholders for input and hidden units
     accuracy: accuracy tensor
@@ -28,7 +29,7 @@ class CGraph:
     use_test_data: use this op to read the test set
   '''
 
-  def __init__(self, dataset, batch=None, seed=None):
+  def __init__(self, dataset, batch=None, seed=None, regularization=None):
     '''\
     Create the graph and save useful tensors.
 
@@ -37,6 +38,8 @@ class CGraph:
       batch: Batch size in int, or None to use the full dataset. None by
         default.
       seed: constant seed for repeatable results.
+      regularization: constant that is multuplied to the total variables
+        regularization loss. None means no regularization.
     '''
     
     # Create new
@@ -71,9 +74,9 @@ class CGraph:
 
         # Model
         if dataset == 'example':
-          logits = nets.example_net.model(features, dropouts, seed)
+          logits, size = nets.example_net.model(features, dropouts, seed)
         elif dataset == 'mnist':
-          logits = nets.mnist_net.model(features, dropouts, seed)
+          logits, size = nets.mnist_net.model(features, dropouts, seed)
         else:
           raise ValueError(dataset + ' is not a valid dataset')
       
@@ -84,9 +87,19 @@ class CGraph:
         probabilities = tf.nn.softmax(logits, axis=1)
         output = tf.argmax(probabilities, axis=1, output_type=tf.int32)
 
+        # Regularization
+        with tf.name_scope('regularization'):
+          if regularization == None: regularization = 0
+          regular_const = regularization / size
+          regular_loss = tf.reduce_sum(
+              tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+          regular_loss = regular_loss * regular_const
+
         # Loss
-        loss = tf.losses.sparse_softmax_cross_entropy(
-            labels=labels, logits=logits)
+        with tf.name_scope('loss'):
+          loss = tf.losses.sparse_softmax_cross_entropy(
+              labels=labels, logits=logits)
+          loss = loss + regular_loss
 
         # Errors and accuracy
         diff = tf.not_equal(output, labels)
@@ -102,6 +115,7 @@ class CGraph:
     self.graph = graph
     self.output = output
     self.loss = loss
+    self.regular_loss = regular_loss
     self.errors = errors
     self.dropouts = dropouts
     self.accuracy = accuracy
