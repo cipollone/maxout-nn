@@ -5,6 +5,13 @@ Definition of the maxout layer.
 import tensorflow as tf
 
 
+'''\
+Regularizer for all weight matrices (proportional, not biases).
+'''
+#regularizer = lambda x: tf.reduce_sum(tf.abs(x))
+regularizer = tf.nn.l2_loss
+
+
 def maxout_layer(x, out_size, ch_size, seed=None, return_W=None):
   '''\
   Computes the maxout units for inputs x. This function defines tf opterations
@@ -25,10 +32,6 @@ def maxout_layer(x, out_size, ch_size, seed=None, return_W=None):
   
   # Initializer
   init = tf.glorot_uniform_initializer(seed) if seed else None
-
-  # Weights regularizer. l1/l2?
-  regularizer = lambda x: tf.reduce_sum(tf.abs(x))
-  #regularizer = tf.nn.l2_loss
 
   # Parameters
   W = tf.get_variable('W', shape=(ch_size, in_size, out_size),
@@ -69,7 +72,8 @@ def dense_layer(x, out_size, seed=None):
   init = tf.glorot_uniform_initializer(seed) if seed else None
 
   # Parameters
-  W = tf.get_variable('W', shape=(in_size, out_size), initializer=init)
+  W = tf.get_variable('W', shape=(in_size, out_size),
+      initializer=init, regularizer=regularizer)
   b = tf.get_variable('b', shape=(out_size), initializer=init)
 
   # Affine maps (for whole batch)

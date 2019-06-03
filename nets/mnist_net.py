@@ -25,9 +25,9 @@ def model(data, dropouts, seed=None):
   
   # Sizes
   d = 28*28
-  k1 = 20
-  m1 = 100
-  k2 = 20
+  k1 = 30
+  m1 = 20
+  k2 = 2
   m2 = 10
   n = d*k1*m1 + m1*k2*m2 # Number of weights (no biases)
 
