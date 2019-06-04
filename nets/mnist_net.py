@@ -20,7 +20,6 @@ def model(data, dropouts, seed=None):
 
   Return:
     logis: (batch_size, n_classes). n_classes=10
-    n: size of the net. Number of weights.
   '''
   
   # Sizes
@@ -29,7 +28,6 @@ def model(data, dropouts, seed=None):
   m1 = 20
   k2 = 2
   m2 = 10
-  n = d*k1*m1 + m1*k2*m2 # Number of weights (no biases)
 
   # Input dropout
   tensor = tf.nn.dropout(data, keep_prob=1-dropouts[0])
@@ -54,4 +52,4 @@ def model(data, dropouts, seed=None):
     tensor = tf.transpose(tensor, perm=(2,0,1,3))
     tf.add_to_collection('W_visualization', tensor)
 
-  return logits, n
+  return logits

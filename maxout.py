@@ -8,7 +8,8 @@ different Maxout networks.
 # NOTE: using default variables initialization
 # NOTE: using default variables regularization
 
-# TODO: Debug memory use
+# TODO: Try their normalization
+# TODO: Decaying learning_rate?
 # TODO: Add convolution
 
 
@@ -77,12 +78,18 @@ def training(args):
     # Saver
     saver = tf.train.Saver(max_to_keep=3)
 
+    # Init
+    init = tf.global_variables_initializer()
+
     # Run
     with tf.Session() as sess:
 
+      # Graph is complete
+      tf.get_default_graph().finalize()
+
       # Initialize variables
       if not args.cont: # First time
-        sess.run(tf.global_variables_initializer())
+        sess.run(init)
       else:             # Continue
         checkpoint = tf.train.latest_checkpoint(
             checkpoint_dir=os.path.join('models',args.dataset))

@@ -4,6 +4,7 @@ inputs and net change. The models are clear in Tensorboard.
 '''
 
 import tensorflow as tf
+import numpy as np
 
 import data
 import nets.example_net
@@ -75,11 +76,11 @@ class CGraph:
 
         # Model
         if dataset == 'example':
-          logits, size = nets.example_net.model(features, dropouts, seed)
+          logits = nets.example_net.model(features, dropouts, seed)
         elif dataset == 'mnist':
-          logits, size = nets.mnist_net.model(features, dropouts, seed)
+          logits = nets.mnist_net.model(features, dropouts, seed)
         elif dataset == 'cifar10':
-          logits, size = nets.cifar10_net.model(features, dropouts, seed)
+          logits = nets.cifar10_net.model(features, dropouts, seed)
         else:
           raise ValueError(dataset + ' is not a valid dataset')
       
@@ -92,10 +93,16 @@ class CGraph:
 
         # Regularization
         with tf.name_scope('regularization'):
+
           if regularization == None: regularization = 0
+
+          regular_loss = 0
+          size = 0
+          for var in tf.get_collection('REGULARIZABLE_VARS'):
+            size += np.prod(var.shape.as_list())
+            regular_loss += tf.nn.l2_loss(var)
+
           regular_const = regularization / size
-          regular_loss = tf.reduce_sum(
-              tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
           regular_loss = regular_loss * regular_const
 
         # Loss

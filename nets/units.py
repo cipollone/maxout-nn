@@ -5,17 +5,11 @@ Definition of the maxout layer.
 import tensorflow as tf
 
 
-'''\
-Regularizer for all weight matrices (proportional, not biases).
-'''
-#regularizer = lambda x: tf.reduce_sum(tf.abs(x))
-regularizer = tf.nn.l2_loss
-
-
 def maxout_layer(x, out_size, ch_size, seed=None, return_W=None):
   '''\
   Computes the maxout units for inputs x. This function defines tf opterations
   that compute the maxout layer: linear + max.
+  It puts variables to be regularized in collection 'REGULARIZABLE_VARS'.
 
   Args:
     x: input vectors. Shape (batch_size, n_features) (N x d in paper)
@@ -35,8 +29,11 @@ def maxout_layer(x, out_size, ch_size, seed=None, return_W=None):
 
   # Parameters
   W = tf.get_variable('W', shape=(ch_size, in_size, out_size),
-      initializer=init, regularizer=regularizer)
+      initializer=init)
   b = tf.get_variable('b', shape=(ch_size, out_size), initializer=init)
+
+  # Regularization should only affect W
+  tf.add_to_collection('REGULARIZABLE_VARS', W)
 
   # Affine maps (multiply a whole batch in one step)
   z = tf.einsum('id,kdm->ikm', x, W) + b
@@ -56,6 +53,7 @@ def dense_layer(x, out_size, seed=None):
   Affine function of given dimensions. No activation function.
   We're not using keras.layers.Dense because it's easy to write, and to be
   consistent with maxout_layer.
+  It puts variables to be regularized in collection 'REGULARIZABLE_VARS'.
 
   Args:
     x: input vectors. Shape (batch_size, n_features)
@@ -72,9 +70,11 @@ def dense_layer(x, out_size, seed=None):
   init = tf.glorot_uniform_initializer(seed) if seed else None
 
   # Parameters
-  W = tf.get_variable('W', shape=(in_size, out_size),
-      initializer=init, regularizer=regularizer)
+  W = tf.get_variable('W', shape=(in_size, out_size), initializer=init)
   b = tf.get_variable('b', shape=(out_size), initializer=init)
+
+  # Regularization should only affect W
+  tf.add_to_collection('REGULARIZABLE_VARS', W)
 
   # Affine maps (for whole batch)
   y = tf.matmul(x, W) + b
