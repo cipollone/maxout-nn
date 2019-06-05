@@ -48,7 +48,7 @@ def model(data, dropouts, seed=None):
 
   # Debug
   with tf.name_scope('visualizations'):
-    tensor = tf.reshape(tf.reduce_mean(W1, axis=0), shape=(28,28,-1,1))
+    tensor = tf.reshape(tf.reduce_mean(W1, axis=1), shape=(28,28,-1,1))
     tensor = tf.transpose(tensor, perm=(2,0,1,3))
     tf.add_to_collection('W_visualization', tensor)
 

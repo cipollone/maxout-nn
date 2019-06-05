@@ -52,7 +52,7 @@ def model(data, dropouts, seed=None):
 
   # Debug
   with tf.name_scope('visualizations'):
-    tensor = tf.reshape(tf.reduce_mean(W1, axis=0), shape=(32, 32, 3, -1))
+    tensor = tf.reshape(tf.reduce_mean(W1, axis=1), shape=(32, 32, 3, -1))
     tensor = tf.transpose(tensor, perm=(3, 0, 1, 2))
     tf.add_to_collection('W_visualization', tensor)
 

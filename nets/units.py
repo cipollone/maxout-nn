@@ -2,6 +2,9 @@
 Definition of the maxout layer.
 '''
 
+# NOTE: using variables' default initializer
+
+
 import tensorflow as tf
 
 
@@ -28,7 +31,7 @@ def maxout_layer(x, out_size, ch_size, seed=None, return_W=None):
   init = tf.glorot_uniform_initializer(seed) if seed else None
 
   # Parameters
-  W = tf.get_variable('W', shape=(ch_size, in_size, out_size),
+  W = tf.get_variable('W', shape=(in_size, ch_size, out_size),
       initializer=init)
   b = tf.get_variable('b', shape=(ch_size, out_size), initializer=init)
 
@@ -36,7 +39,7 @@ def maxout_layer(x, out_size, ch_size, seed=None, return_W=None):
   tf.add_to_collection('REGULARIZABLE_VARS', W)
 
   # Affine maps (multiply a whole batch in one step)
-  z = tf.einsum('id,kdm->ikm', x, W) + b
+  z = tf.einsum('id,dkm->ikm', x, W) + b
 
   # Max
   out = tf.reduce_max(z, axis=1)

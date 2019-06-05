@@ -5,6 +5,7 @@ inputs and net change. The models are clear in Tensorboard.
 
 import tensorflow as tf
 import numpy as np
+import os
 
 import data
 import nets.example_net
@@ -29,9 +30,11 @@ class CGraph:
     use_train_data: use this op to read the training set
     use_val_data: use this op to read the validation set
     use_test_data: use this op to read the test set
+    normalization_ops: run these ops to normalize vectors in weight matrices
   '''
 
-  def __init__(self, dataset, batch=None, seed=None, regularization=None):
+  def __init__(self, dataset, batch=None, seed=None, regularization=None,
+      renormalization=None):
     '''\
     Create the graph and save useful tensors.
 
@@ -42,6 +45,8 @@ class CGraph:
       seed: constant seed for repeatable results.
       regularization: constant that is multuplied to the total variables
         regularization loss. None means no regularization.
+      renormalization: if not none, normalization_ops renormalize all weight
+        vectors if their norms exceed this value.
     '''
     
     # Create new
@@ -91,22 +96,21 @@ class CGraph:
         probabilities = tf.nn.softmax(logits, axis=1)
         output = tf.argmax(probabilities, axis=1, output_type=tf.int32)
 
-        # Regularization
-        with tf.name_scope('regularization'):
+        # Loss block
+        with tf.name_scope('loss'):
 
-          if regularization == None: regularization = 0
-
+          # Regularization: l2
           regular_loss = 0
           size = 0
           for var in tf.get_collection('REGULARIZABLE_VARS'):
             size += np.prod(var.shape.as_list())
             regular_loss += tf.nn.l2_loss(var)
 
-          regular_const = regularization / size
-          regular_loss = regular_loss * regular_const
+          regular_const = regularization / size if regularization else 0
+          regular_loss = tf.multiply(regular_loss,regular_const,
+              name='regularization')
 
-        # Loss
-        with tf.name_scope('loss'):
+          # Loss
           loss = tf.losses.sparse_softmax_cross_entropy(
               labels=labels, logits=logits)
           loss = loss + regular_loss
@@ -116,10 +120,31 @@ class CGraph:
         errors = tf.reduce_sum(tf.cast(diff, tf.int32))
         accuracy = 1 - errors/tf.size(diff)
 
+      # Out
       output = tf.identity(output, name='predicted_label')
       loss = tf.identity(loss, name='loss')
       errors = tf.identity(errors, name='errors')
       accuracy = tf.identity(accuracy, name='accuracy')
+
+      # Regularization: normalization
+      normalization_ops = []
+      for var in tf.get_collection('REGULARIZABLE_VARS'):
+
+        # Put these op next to vars
+        scope = os.path.split(var.name)[0] + '/renormalization/'
+        with tf.name_scope(scope):
+
+          # Check length of vectors
+          norms = tf.norm(var, axis=0)  # Vectors along the first dimension
+          norms = tf.expand_dims(norms, axis=0)
+
+          # Scale only if exceeding limit
+          if not renormalization: renormalization = 1
+          scale = tf.where(tf.greater(norms, renormalization),
+              norms, tf.ones_like(norms))  # TODO: alternatives to ones_like
+
+          scaling_op = var.assign(var / scale)
+          normalization_ops.append(scaling_op)
 
     # Save
     self.graph = graph
@@ -132,3 +157,4 @@ class CGraph:
     self.use_train_data = use_train_data
     self.use_val_data = use_val_data
     self.use_test_data = use_test_data
+    self.normalization_ops = normalization_ops

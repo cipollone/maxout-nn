@@ -5,12 +5,7 @@ Main script file. Depending on the parameters, we can train or test with
 different Maxout networks.
 '''
 
-# NOTE: using default variables initialization
-# NOTE: using default variables regularization
-
-# TODO: Try their normalization
-# TODO: Decaying learning_rate?
-# TODO: Add convolution
+# TODO: use TF 1.13
 
 
 import os
@@ -50,7 +45,8 @@ def training(args):
     steps_range = range(last_step+1, last_step+args.steps+1)
 
   # Instantiate the graph
-  graph = CGraph(args.dataset, args.batch, args.seed, args.regularization)
+  graph = CGraph(args.dataset, args.batch, args.seed, args.regularization,
+      args.renormalization)
 
   # Use it
   with graph.graph.as_default():
@@ -110,6 +106,10 @@ def training(args):
                 graph.dropouts[0]: args.dropout[0],
                 graph.dropouts[1]: args.dropout[1],
               })
+
+        # Renormalization
+        if args.renormalization:
+          sess.run( graph.normalization_ops )
 
         # Every log_every steps or at the end
         if step % args.log_every == 0 or step == steps_range.stop-1:
@@ -329,6 +329,9 @@ def main():
       dest='seed', help='Always use the same seed for reproducible results')
   parser.add_argument('--regularization', type=float,
       help='Regularization scale. 0 means no regularization')
+  parser.add_argument('--renormalization', type=float,
+      help='If set, this is the maximum norm for all vectors in weigts\
+          matrices')
 
   args = parser.parse_args()
 
@@ -342,6 +345,9 @@ def main():
     if args.op == 'test':
       print('Warning: dropout argument is not used in testing.')
 
+  if args.renormalization != None and args.renormalization <= 0:
+    raise ValueError(
+        '--renormalization must be a positive length.')
 
   # Go
   if args.op == 'train':
