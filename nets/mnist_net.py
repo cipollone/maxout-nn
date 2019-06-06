@@ -30,7 +30,7 @@ def model(data, dropouts, seed=None):
   m2 = 10
 
   # Input dropout
-  tensor = tf.nn.dropout(data, keep_prob=1-dropouts[0])
+  tensor = tf.nn.dropout(data, rate=dropouts[0])
 
   # Layer 1
   with tf.variable_scope('1-maxout'):
@@ -38,7 +38,7 @@ def model(data, dropouts, seed=None):
         seed=seed, return_W=True)
 
   # Dropout
-  tensor = tf.nn.dropout(tensor, keep_prob=1-dropouts[1])
+  tensor = tf.nn.dropout(tensor, rate=dropouts[1])
 
   # Layer 2
   with tf.variable_scope('2-maxout'):

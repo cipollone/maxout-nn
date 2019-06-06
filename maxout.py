@@ -5,8 +5,6 @@ Main script file. Depending on the parameters, we can train or test with
 different Maxout networks.
 '''
 
-# TODO: use TF 1.13
-
 
 import os
 import argparse

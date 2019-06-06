@@ -141,7 +141,7 @@ class CGraph:
           # Scale only if exceeding limit
           if not renormalization: renormalization = 1
           scale = tf.where(tf.greater(norms, renormalization),
-              norms, tf.ones_like(norms))  # TODO: alternatives to ones_like
+              norms, tf.broadcast_to(1.0, norms.shape))
 
           scaling_op = var.assign(var / scale)
           normalization_ops.append(scaling_op)
