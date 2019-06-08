@@ -10,6 +10,7 @@ import os
 import argparse
 import shutil
 import tensorflow as tf
+import numpy as np
 
 from graphs import CGraph
 from tools import RunContexts
@@ -26,7 +27,7 @@ def training(args):
 
   # Prints
   print('| Training')
-  print('| Dataset:', args.dataset)
+  print('| Dataset:', args.dataset, flush=True)
 
   # Start or continue? Check directories and set iteration range
   if not args.cont:
@@ -61,9 +62,9 @@ def training(args):
     tf.summary.scalar('loss', graph.loss)
     tf.summary.scalar('accuracy', graph.accuracy)
     val_summaries_op = tf.summary.merge_all()
-    if args.dataset in ('mnist','cifar10'):
-      tf.summary.image('2-maxout:W', tf.get_collection('W_visualization')[0],
-          max_outputs=10)
+    images = tf.get_collection('VISUALIZATIONS')
+    if images:
+      tf.summary.image('tensor_images', images[0], max_outputs=10)
     train_summaries_op = tf.summary.merge_all()
 
     train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
@@ -80,6 +81,9 @@ def training(args):
 
       # Graph is complete
       tf.get_default_graph().finalize()
+      var_sizes = [np.prod(var.shape.as_list())
+          for var in tf.trainable_variables()]
+      print('| Number of parameters:', np.sum(var_sizes), flush=True)
 
       # Initialize variables
       if not args.cont: # First time
@@ -88,7 +92,7 @@ def training(args):
         checkpoint = tf.train.latest_checkpoint(
             checkpoint_dir=os.path.join('models',args.dataset))
         saver.restore(sess, checkpoint)
-        print('| Variables restored.')
+        print('| Variables restored.', flush=True)
 
       # Create contexts
       contexts = RunContexts(sess, train_set=graph.use_train_data,
@@ -130,7 +134,7 @@ def training(args):
 
           # Log
           print('| Step: ' + str(step) + ', train loss: ' + str(train_loss) +
-              ' ( reg_loss: ' + str(train_regular_loss) + ' )')
+              ' ( reg_loss: ' + str(train_regular_loss) + ' )', flush=True)
           train_writer.add_summary(train_summaries, step)
           val_writer.add_summary(val_summaries, step)
           train_writer.flush()
@@ -158,7 +162,7 @@ def testing(args):
 
   # Prints
   print('| Testing')
-  print('| Dataset:', args.dataset)
+  print('| Dataset:', args.dataset, flush=True)
 
   # Instantiate the graph
   graph = CGraph(args.dataset)

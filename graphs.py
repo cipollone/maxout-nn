@@ -128,14 +128,19 @@ class CGraph:
 
       # Regularization: normalization
       normalization_ops = []
-      for var in tf.get_collection('REGULARIZABLE_VARS'):
+      for var in tf.get_collection('RENORMALIZABLE_VARS'):
 
         # Put these op next to vars
         scope = os.path.split(var.name)[0] + '/renormalization/'
         with tf.name_scope(scope):
 
+          # Reshape if convolutional kernels
+          is_convolutional = len(var.shape) > 3
+          vectors = (var if not is_convolutional else tf.reshape(var,
+              shape=(var.shape[0]*var.shape[1], *var.shape[2:]))) # collapse ij
+
           # Check length of vectors
-          norms = tf.norm(var, axis=0)  # Vectors along the first dimension
+          norms = tf.norm(vectors, axis=0)  # Vectors along the first dimension
           norms = tf.expand_dims(norms, axis=0)
 
           # Scale only if exceeding limit
@@ -143,6 +148,7 @@ class CGraph:
           scale = tf.where(tf.greater(norms, renormalization),
               norms, tf.broadcast_to(1.0, norms.shape))
 
+          # Apply
           scaling_op = var.assign(var / scale)
           normalization_ops.append(scaling_op)
 

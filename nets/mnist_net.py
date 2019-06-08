@@ -30,7 +30,7 @@ def model(data, dropouts, seed=None):
   m2 = 10
 
   # Input dropout
-  tensor = tf.nn.dropout(data, rate=dropouts[0])
+  tensor = tf.nn.dropout(data, rate=dropouts[0], seed=seed)
 
   # Layer 1
   with tf.variable_scope('1-maxout'):
@@ -38,7 +38,7 @@ def model(data, dropouts, seed=None):
         seed=seed, return_W=True)
 
   # Dropout
-  tensor = tf.nn.dropout(tensor, rate=dropouts[1])
+  tensor = tf.nn.dropout(tensor, rate=dropouts[1], seed=seed)
 
   # Layer 2
   with tf.variable_scope('2-maxout'):
@@ -50,6 +50,6 @@ def model(data, dropouts, seed=None):
   with tf.name_scope('visualizations'):
     tensor = tf.reshape(tf.reduce_mean(W1, axis=1), shape=(28,28,-1,1))
     tensor = tf.transpose(tensor, perm=(2,0,1,3))
-    tf.add_to_collection('W_visualization', tensor)
+    tf.add_to_collection('VISUALIZATIONS', tensor)
 
   return logits
