@@ -89,8 +89,8 @@ def dense_layer(x, out_size, seed=None):
   return y
 
 
-def conv_maxout_layer(x, filter_shape, ch_size, strides=None, seed=None,
-    return_W=None):
+def conv_maxout_layer(x, filter_shape, ch_size, strides=None, padding=None,
+        seed=None, return_W=None):
   '''\
   Performs a 2D convolution with 'filter' for each image in x, then applies 
   maxout. This function wraps tf.nn.conv2d.  However, the output tensor
@@ -105,6 +105,7 @@ def conv_maxout_layer(x, filter_shape, ch_size, strides=None, seed=None,
       This creates f_height*f_width*channels*out_channels*ch_size parameters.
     strides: 1-D tensor of length 4. Stride along each dimension of 'x'.
       It should be like [1,*,*,1]. 'None' means [1,1,1,1].
+    padding: 'SAME' or 'VALID'. see tf.nn.conv2d. 'VALID' by default.
     seed: seed for deterministic initialization of variables.
     return_W: if true, returns both the output and the W parameters.
 
@@ -115,6 +116,8 @@ def conv_maxout_layer(x, filter_shape, ch_size, strides=None, seed=None,
   # Defaults
   if not strides:
     strides = [1,1,1,1]
+  if not padding:
+    padding = 'VALID'
 
   # Initializer
   init = tf.glorot_uniform_initializer(seed) if seed else None
@@ -129,7 +132,7 @@ def conv_maxout_layer(x, filter_shape, ch_size, strides=None, seed=None,
   tf.add_to_collection('RENORMALIZABLE_VARS', W)
 
   # Convolution
-  z = tf.nn.conv2d(x, filter=W, strides=strides, padding='VALID',
+  z = tf.nn.conv2d(x, filter=W, strides=strides, padding=padding,
       data_format='NHWC')
 
   # Max along ch_size axis

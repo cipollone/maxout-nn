@@ -16,6 +16,12 @@ from graphs import CGraph
 from tools import RunContexts
 
 
+# TODO: exponential mooving average to boost predictions.. Use --pseudorand
+# TODO: study conv nn concepts
+# TODO: look at examples of good conv NN
+# TODO: create a conv NN in cifar of reasonable dimensions
+
+
 def training(args):
   '''\
   Training function. Saves checkpoints in models/<args.dataset>/model.
