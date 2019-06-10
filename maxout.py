@@ -12,14 +12,8 @@ import shutil
 import tensorflow as tf
 import numpy as np
 
-from graphs import CGraph
+from graphs import CGraph, EmaVariables
 from tools import RunContexts
-
-
-# TODO: exponential mooving average to boost predictions.. Use --pseudorand
-# TODO: study conv nn concepts
-# TODO: look at examples of good conv NN
-# TODO: create a conv NN in cifar of reasonable dimensions
 
 
 def training(args):
@@ -76,19 +70,19 @@ def training(args):
     train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
     val_writer = tf.summary.FileWriter('logs/val')
 
-    # Saver
-    saver = tf.train.Saver(max_to_keep=3)
+    # Predict with running averages
+    variables = EmaVariables(args.ema)
 
-    # Init
+    # Variables initializer and saver
     init = tf.global_variables_initializer()
+    saver = tf.train.Saver(max_to_keep=3)
 
     # Run
     with tf.Session() as sess:
 
       # Graph is complete
       tf.get_default_graph().finalize()
-      var_sizes = [np.prod(var.shape.as_list())
-          for var in tf.trainable_variables()]
+      var_sizes = [np.prod(var.shape.as_list()) for var in variables.vars]
       print('| Number of parameters:', np.sum(var_sizes), flush=True)
 
       # Initialize variables
@@ -100,15 +94,19 @@ def training(args):
         saver.restore(sess, checkpoint)
         print('| Variables restored.', flush=True)
 
+      # Initialize average
+      sess.run(variables.initialize_backups)
+
       # Create contexts
-      contexts = RunContexts(sess, train_set=graph.use_train_data,
-          val_set=graph.use_val_data)
+      contexts = RunContexts(sess,
+          train=(graph.use_train_data, variables.use_training_variables),
+          val=(graph.use_val_data, variables.use_ema_variables))
 
       # Main loop
       for step in steps_range:
 
         # Train
-        with contexts.train_set:
+        with contexts.train:
           sess.run( minimize,
               feed_dict={
                 graph.dropouts[0]: args.dropout[0],
@@ -119,18 +117,21 @@ def training(args):
         if args.renormalization:
           sess.run( graph.normalization_ops )
 
+        # Update average
+        sess.run( variables.update_op )
+
         # Every log_every steps or at the end
         if step % args.log_every == 0 or step == steps_range.stop-1:
 
           # Test on train set and validation set
-          with contexts.train_set:
+          with contexts.train:
             train_loss, train_regular_loss, train_summaries = sess.run(
                 (graph.loss, graph.regular_loss, train_summaries_op),
                 feed_dict={
                   graph.dropouts[0]: 0,
                   graph.dropouts[1]: 0,
                 })
-          with contexts.val_set:
+          with contexts.val:
             val_loss, val_summaries = sess.run(
                 (graph.loss, val_summaries_op),
                 feed_dict={
@@ -148,7 +149,8 @@ def training(args):
 
           # Save parameters
           model_name = 'model-step{}'.format(step)
-          saver.save(sess, os.path.join('models',args.dataset,model_name))
+          with contexts.train:
+            saver.save(sess, os.path.join('models',args.dataset,model_name))
 
           # Save step number
           with open('logs/last_step.txt', 'wt') as step_f:
@@ -171,16 +173,26 @@ def testing(args):
   print('| Dataset:', args.dataset, flush=True)
 
   # Instantiate the graph
-  graph = CGraph(args.dataset)
+  graph = CGraph(args.dataset, seed=args.seed)
 
   # Use it
   with graph.graph.as_default():
     
+    # Constant seed for debugging
+    if args.seed:
+      tf.set_random_seed(args.seed)
+
+    # Predict with running averages
+    variables = EmaVariables(args.ema)
+
     # Create a Saver
     saver = tf.train.Saver()
 
     # Run
     with tf.Session() as sess:
+
+      # Graph is complete
+      tf.get_default_graph().finalize()
 
       # Restore parameters
       checkpoint = tf.train.latest_checkpoint(
@@ -188,7 +200,8 @@ def testing(args):
       saver.restore(sess, checkpoint)
 
       # Create context
-      contexts = RunContexts(sess, test_set=graph.use_test_data)
+      contexts = RunContexts(sess,
+          test_set=(graph.use_test_data, variables.use_ema_variables))
 
       # Predict
       with contexts.test_set:
@@ -302,6 +315,7 @@ def main():
   optimizer = 'adam'
   seed = 4134631
   dataset = 'cifar10'
+  ema = 0.99
 
   ## Parsing arguments
   parser = argparse.ArgumentParser(description='Training and testing with\
@@ -340,6 +354,8 @@ def main():
   parser.add_argument('--renormalization', type=float,
       help='If set, this is the maximum norm for all vectors in weigts\
           matrices')
+  parser.add_argument('--ema', type=float, default=ema,
+      help='Running average decay rate (something like 0.99).')
 
   args = parser.parse_args()
 
@@ -356,6 +372,10 @@ def main():
   if args.renormalization != None and args.renormalization <= 0:
     raise ValueError(
         '--renormalization must be a positive length.')
+
+  if args.ema and not (0 <= args.ema < 1):
+    raise ValueError(
+        '--ema must be a decay rate in [0, 1).')
 
   # Go
   if args.op == 'train':
