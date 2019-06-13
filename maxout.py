@@ -55,12 +55,13 @@ def training(args):
       tf.set_random_seed(args.seed)
 
     # Optimizer
-    optimizer = _select_optimizer(args)
-    minimize = optimizer.minimize(graph.loss)
+    optimizer, rate, step_var = _select_optimizer(args)
+    minimize = optimizer.minimize(graph.loss, step_var)
 
     # Tensorboard summaries
-    tf.summary.scalar('loss', graph.loss)
-    tf.summary.scalar('accuracy', graph.accuracy)
+    tf.summary.scalar('1_accuracy', graph.accuracy)
+    tf.summary.scalar('2_loss', graph.loss)
+    tf.summary.scalar('3_learning rate', rate)
     val_summaries_op = tf.summary.merge_all()
     images = tf.get_collection('VISUALIZATIONS')
     if images:
@@ -272,9 +273,11 @@ def _select_optimizer(args):
           adam: AdamOptimizer
       parameters: a list of `opt=val' options to pass to the constructor.
         val is numeric.
+      decay_after: (STEPS, FACTOR). If not None, after this number of STEPS,
+        the learning rate decreases by FACTOR.
 
   Returns:
-    a tf.train.Optimizer
+    A tf.train.Optimizer, the learning_rate, and the global_step
   '''
 
   # Extract parameters
@@ -284,23 +287,31 @@ def _select_optimizer(args):
       key, val = p.split('=',maxsplit=1)
       params[key.strip()] = float(val)
 
+  # Learning rate decay
+  rate = args.rate
+  step_var = tf.train.create_global_step()
+  if args.decay_after:
+    rate = tf.train.exponential_decay(rate,
+       step_var, args.decay_after[0], args.decay_after[1], staircase=True)
+
+
   # Select optimizer
   if args.optimizer == 'gd':
-    opt = tf.train.GradientDescentOptimizer(args.rate, **params)
+    opt = tf.train.GradientDescentOptimizer(rate, **params)
   elif args.optimizer == 'rms':
-    opt = tf.train.RMSPropOptimizer(args.rate, **params)
+    opt = tf.train.RMSPropOptimizer(rate, **params)
   elif args.optimizer == 'adagrad':
-    opt = tf.train.AdagradOptimizer(args.rate, **params)
+    opt = tf.train.AdagradOptimizer(rate, **params)
   elif args.optimizer == 'adadelta':
-    opt = tf.train.AdadeltaOptimizer(args.rate, **params)
+    opt = tf.train.AdadeltaOptimizer(rate, **params)
   elif args.optimizer == 'adam':
-    opt = tf.train.AdamOptimizer(args.rate, **params)
+    opt = tf.train.AdamOptimizer(rate, **params)
   else:
     raise ValueError(args.optimizer+
       ' is not an optimizer. See help(maxout._select_optimizer)')
 
   print('| Using', opt.get_name())
-  return opt
+  return opt, rate, step_var
 
 
 def main():
@@ -315,7 +326,7 @@ def main():
   optimizer = 'adam'
   seed = 4134631
   dataset = 'cifar10'
-  ema = 0.99
+  ema = 0.0 # Off
 
   ## Parsing arguments
   parser = argparse.ArgumentParser(description='Training and testing with\
@@ -342,8 +353,8 @@ def main():
   parser.add_argument('-c', '--continue', action='store_true', dest='cont',
       help='Loads most recent saved model and resumes training from there.\
           Continue with the same optimizer.')
-  parser.add_argument('--dropout', type=float, nargs=2, metavar=('input_rate',
-      'hidden_rate'),
+  parser.add_argument('--dropout', type=float, nargs=2, metavar=('INPUT_RATE',
+      'HIDDEN_RATE'),
       help='Dropout probability: drop probability for input and hidden units.')
   parser.add_argument('-b', '--batch', type=int, 
       help='Batch size. Without this parameter, the whole dataset is used.')
@@ -356,10 +367,13 @@ def main():
           matrices')
   parser.add_argument('--ema', type=float, default=ema,
       help='Running average decay rate (something like 0.99).')
+  parser.add_argument('--decay_after', nargs=2, metavar=('STEPS', 'FACTOR'),
+      type=float, help='Number of STEPS after which the learnin rate decays\
+          by FACTOR')
 
   args = parser.parse_args()
 
-  # Small checks for dropout
+  # Some checks
   if not args.dropout:
     args.dropout = (0,0) # Keep everything
   else:
@@ -376,6 +390,14 @@ def main():
   if args.ema and not (0 <= args.ema < 1):
     raise ValueError(
         '--ema must be a decay rate in [0, 1).')
+
+  if args.decay_after:
+    if not args.decay_after[0].is_integer() or args.decay_after[0] <= 0:
+      raise ValueError(
+          '--decay_after STEPS must be a positive number of steps (int)')
+    if not 0 <= args.decay_after[1] <= 1:
+      raise ValueError(
+          '--decay_after FACTOR must be in [0, 1].')
 
   # Go
   if args.op == 'train':
