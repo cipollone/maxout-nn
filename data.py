@@ -51,7 +51,7 @@ def dataset(name, group, batch=None, seed=None):
     data = data.batch(batch)              # batches
     data = data.prefetch(1)               # also fetch next batch
   else:
-    data = data.batch(size)               # all toghether
+    data = data.batch(min(size, 300))     # predict up to 300 toghether
 
   return data
 
@@ -84,7 +84,7 @@ def iterator(name):
 @with_persistent_vars(mean=None, std=None)
 def _mnist_dataset(group):
 
-  # This dataset is small enough to be loaded all at once
+  # This dataset usually can be loaded all at once and used in batches
   
   # Read files
   if group == 'train':

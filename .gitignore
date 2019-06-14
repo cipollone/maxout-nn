@@ -8,6 +8,7 @@
 /logs/*
 !/logs/dir.txt
 !/logs/clear_logs.py
+/log.txt
 
 # Python
 __pycache__/

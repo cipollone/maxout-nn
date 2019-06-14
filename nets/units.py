@@ -105,7 +105,7 @@ def conv_maxout_layer(x, filter_shape, ch_size, strides=None, padding=None,
       This creates f_height*f_width*channels*out_channels*ch_size parameters.
     strides: 1-D tensor of length 4. Stride along each dimension of 'x'.
       It should be like [1,*,*,1]. 'None' means [1,1,1,1].
-    padding: 'SAME' or 'VALID'. see tf.nn.conv2d. 'VALID' by default.
+    padding: 'SAME' or 'VALID'. see tf.nn.conv2d. 'SAME' by default.
     seed: seed for deterministic initialization of variables.
     return_W: if true, returns both the output and the W parameters.
 
@@ -117,7 +117,7 @@ def conv_maxout_layer(x, filter_shape, ch_size, strides=None, padding=None,
   if not strides:
     strides = [1,1,1,1]
   if not padding:
-    padding = 'VALID'
+    padding = 'SAME'
 
   # Initializer
   init = tf.glorot_uniform_initializer(seed) if seed else None
@@ -126,6 +126,7 @@ def conv_maxout_layer(x, filter_shape, ch_size, strides=None, padding=None,
   filter_shape = [filter_shape[0], filter_shape[1], int(x.shape[-1]),
       filter_shape[2]*ch_size]
   W = tf.get_variable('W', shape=filter_shape, initializer=init)
+  b = tf.get_variable('b', shape=(filter_shape[-1],), initializer=init)
 
   # Regularization
   tf.add_to_collection('REGULARIZABLE_VARS', W)
@@ -134,6 +135,7 @@ def conv_maxout_layer(x, filter_shape, ch_size, strides=None, padding=None,
   # Convolution
   z = tf.nn.conv2d(x, filter=W, strides=strides, padding=padding,
       data_format='NHWC')
+  z = z + b
 
   # Max along ch_size axis
   shape = ([-1] + z.shape[1:3].as_list() +

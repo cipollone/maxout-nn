@@ -59,10 +59,12 @@ def training(args):
     minimize = optimizer.minimize(graph.loss, step_var)
 
     # Tensorboard summaries
-    tf.summary.scalar('1_accuracy', graph.accuracy)
-    tf.summary.scalar('2_loss', graph.loss)
-    tf.summary.scalar('3_learning rate', rate)
-    val_summaries_op = tf.summary.merge_all()
+    scalar_summaries = (
+      ('1_accuracy', graph.accuracy),
+      ('2_loss', graph.loss),
+      ('3_learning_rate', rate))
+    for scalar in scalar_summaries:
+      tf.summary.scalar(*scalar)
     images = tf.get_collection('VISUALIZATIONS')
     if images:
       tf.summary.image('tensor_images', images[0], max_outputs=10)
@@ -77,6 +79,11 @@ def training(args):
     # Variables initializer and saver
     init = tf.global_variables_initializer()
     saver = tf.train.Saver(max_to_keep=3)
+
+    # Run Options. Used if necessary
+    rConf = tf.ConfigProto(log_device_placement=True,
+        allow_soft_placement=True)
+    rOpts = tf.RunOptions(report_tensor_allocations_upon_oom=True)
 
     # Run
     with tf.Session() as sess:
@@ -124,21 +131,13 @@ def training(args):
         # Every log_every steps or at the end
         if step % args.log_every == 0 or step == steps_range.stop-1:
 
-          # Test on train set and validation set
+          # Predict on train set and validation set
           with contexts.train:
             train_loss, train_regular_loss, train_summaries = sess.run(
-                (graph.loss, graph.regular_loss, train_summaries_op),
-                feed_dict={
-                  graph.dropouts[0]: 0,
-                  graph.dropouts[1]: 0,
-                })
+                (graph.loss, graph.regular_loss, train_summaries_op))
+
           with contexts.val:
-            val_loss, val_summaries = sess.run(
-                (graph.loss, val_summaries_op),
-                feed_dict={
-                  graph.dropouts[0]: 0,
-                  graph.dropouts[1]: 0,
-                })
+            val_summaries = predict_all_batches(sess, scalar_summaries)
 
           # Log
           print('| Step: ' + str(step) + ', train loss: ' + str(train_loss) +
@@ -206,17 +205,14 @@ def testing(args):
 
       # Predict
       with contexts.test_set:
-        output, loss, accuracy = sess.run(
-            (graph.output, graph.loss, graph.accuracy),
-            feed_dict={
-              graph.dropouts[0]: 0,
-              graph.dropouts[1]: 0,
-            })
+        summary = predict_all_batches(sess, (
+          ('accuracy', graph.accuracy),
+          ('loss', graph.loss)
+        ))
 
       # Out
-      print('| Predicted:', output)
-      print('| Accuracy:', accuracy)
-      print('| Loss:', loss)
+      print('| Accuracy:', summary.value[0].simple_value)
+      print('| Loss:', summary.value[1].simple_value)
 
 
 def debug(args):
@@ -230,6 +226,44 @@ def debug(args):
 
   import pdb
   pdb.set_trace()
+
+
+def predict_all_batches(sess, summaries, feed_dict=None):
+  '''\
+  Sometimes the test/validation set can't be predicted as a single batch due
+  to memory constraints of large nets. This function iterates on all batches
+  averaging the given metrics until the dataset ends (it should end, since
+  it's the validation/test set). The dataset is not explicitly passed (we use
+  initializable iterators).
+
+  Args:
+    sess: an open tf Session
+    summaries: list of (name, tensor) for each summary to compute
+    feed_dict: feed_dict argument to pass
+
+  Returns:
+    A Summary
+  '''
+
+  tensors = [tensor for (_, tensor) in summaries]
+  names = [name for (name, _) in summaries]
+  values = []
+
+  # Compute for each batch
+  while True:
+    try:
+      values.append(sess.run(tensors, feed_dict=feed_dict))
+    except tf.errors.OutOfRangeError:
+      break
+
+  # Average and create summary
+  values = np.mean(values, axis=0)
+
+  summary_values = [tf.Summary.Value(tag=name, simple_value=val)
+      for name, val in zip(names, values)]
+  
+  summary = tf.Summary(value=summary_values)
+  return summary
 
 
 def _clear_saved(dataset):
@@ -288,7 +322,7 @@ def _select_optimizer(args):
       params[key.strip()] = float(val)
 
   # Learning rate decay
-  rate = args.rate
+  rate = tf.convert_to_tensor(args.rate, name='learning_rate')
   step_var = tf.train.create_global_step()
   if args.decay_after:
     rate = tf.train.exponential_decay(rate,

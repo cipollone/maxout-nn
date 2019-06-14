@@ -76,8 +76,8 @@ class CGraph:
       with tf.variable_scope('net'):
 
         # Dropout placeholders
-        dropouts = [tf.placeholder(tf.float32, shape=[], name=i+'_dropout')
-            for i in ('input','hidden')]
+        dropouts = [tf.placeholder_with_default(0.0, shape=[],
+            name=i+'_dropout') for i in ('input','hidden')]
 
         # Model
         if dataset == 'example':
