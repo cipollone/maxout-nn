@@ -21,41 +21,51 @@ def model(data, dropouts, seed=None):
   Return:
     logis: (batch_size, n_classes). n_classes=10
   '''
+
+  tensor = data
   
   # Input dropout
-  tensor = tf.nn.dropout(data, rate=dropouts[0])
+  tensor = tf.nn.dropout(tensor, rate=dropouts[0], seed=seed)
 
   # Conv
   with tf.variable_scope('1-conv_maxout'):
-    tensor = units.conv_maxout_layer(tensor, filter_shape=(5, 5, 50),
+    tensor = units.conv_maxout_layer(tensor, filter_shape=(5, 5, 10),
         ch_size=5, strides=(1,1,1,1), padding='SAME', seed=seed)
     tensor_visualize = tensor
 
+  # Spatial dropout
+  with tf.name_scope('spatial-dropout'):
+    tensor = units.spatial_dropout(tensor, rate=dropouts[1], seed=seed)
+
   # Conv
   with tf.variable_scope('2-conv_maxout'):
-    tensor = units.conv_maxout_layer(tensor, filter_shape=(5, 5, 50),
-        ch_size=5, strides=(1,1,1,1), padding='SAME', seed=seed)
-
-  # Maxpooling
-  tensor = tf.nn.max_pool(tensor, ksize=[1,3,3,1], strides=[1,2,2,1],
-    padding='SAME')
-
-  # Conv
-  with tf.variable_scope('3-conv_maxout'):
     tensor = units.conv_maxout_layer(tensor, filter_shape=(5, 5, 20),
         ch_size=5, strides=(1,1,1,1), padding='SAME', seed=seed)
 
   # Maxpooling
-  tensor = tf.nn.max_pool(tensor, ksize=[1,3,3,1], strides=[1,2,2,1],
+  tensor = tf.nn.max_pool(tensor, ksize=[1,2,2,1], strides=[1,2,2,1],
     padding='SAME')
+
+  # Spatial dropout
+  with tf.name_scope('spatial-dropout'):
+    tensor = units.spatial_dropout(tensor, rate=dropouts[1], seed=seed)
+
+  # Conv
+  with tf.variable_scope('3-conv_maxout'):
+    tensor = units.conv_maxout_layer(tensor, filter_shape=(5, 5, 50),
+        ch_size=5, strides=(1,1,1,1), padding='SAME', seed=seed)
 
   # Dropout
   tensor = tf.nn.dropout(tensor, rate=dropouts[1], seed=seed)
 
+  # Maxpooling
+  tensor = tf.nn.max_pool(tensor, ksize=[1,2,2,1], strides=[1,2,2,1],
+    padding='SAME')
+
   # Maxout
   with tf.variable_scope('4-maxout'):
     tensor = tf.reshape(tensor, shape=(-1, np.prod(tensor.shape[1:])))
-    tensor = units.maxout_layer(tensor, out_size=200, ch_size=10, seed=seed)
+    tensor = units.maxout_layer(tensor, out_size=50, ch_size=2, seed=seed)
 
   # Dropout
   tensor = tf.nn.dropout(tensor, rate=dropouts[1], seed=seed)
@@ -68,8 +78,7 @@ def model(data, dropouts, seed=None):
 
   # Debug
   with tf.name_scope('visualizations'):
-    # NOTE: assuming batch_size >= 10
-    tensor_visualize = tensor_visualize[:10,:,:,:3]
-    tf.add_to_collection('VISUALIZATIONS', tensor_visualize[:10,:,:,:])
+    tensor_visualize = tensor_visualize[:5,:,:,:3]
+    tf.add_to_collection('VISUALIZATIONS', tensor_visualize)
 
   return logits

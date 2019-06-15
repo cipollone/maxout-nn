@@ -149,3 +149,20 @@ def conv_maxout_layer(x, filter_shape, ch_size, strides=None, padding=None,
     return (out, W)
   else:
     return out
+
+
+def spatial_dropout(tensor, rate, seed=None):
+  '''\
+  Computes spatial dropout: drops entire channels. Useful as input to
+  convolution layers.
+
+  Args:
+    tensor: input tensor of rank 4
+    rate: dropout rate
+    seed: deterministic execution, if given.
+  '''
+
+  tShape = tf.shape(tensor)
+  tensor = tf.nn.dropout(tensor, rate=rate,
+      noise_shape=(tShape[0], 1, 1, tShape[3]), seed=seed)
+  return tensor
