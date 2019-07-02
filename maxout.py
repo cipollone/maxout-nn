@@ -65,9 +65,9 @@ def training(args):
       ('3_learning_rate', rate))
     for scalar in scalar_summaries:
       tf.summary.scalar(*scalar)
-    images = tf.get_collection('VISUALIZATIONS')
-    if images:
-      tf.summary.image('tensor_images', images[0], max_outputs=10)
+    #images = tf.get_collection('VISUALIZATIONS')
+    #if images:  # Not saving images to save space
+    #  tf.summary.image('tensor_images', images[0], max_outputs=10)
     train_summaries_op = tf.summary.merge_all()
 
     train_writer = tf.summary.FileWriter('logs/train', graph=graph.graph)
@@ -276,7 +276,7 @@ def _clear_saved(dataset):
   '''
 
   # Confirm
-  print('| Clearing previous savings. Hit enter to confirm.')
+  print('| Clearing previous savings. Press enter to confirm.')
   input()
   
   # To remove

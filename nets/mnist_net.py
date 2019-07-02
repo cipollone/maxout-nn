@@ -22,19 +22,12 @@ def model(data, dropouts, seed=None):
     logis: (batch_size, n_classes). n_classes=10
   '''
   
-  # Sizes
-  d = 28*28
-  k1 = 30
-  m1 = 20
-  k2 = 2
-  m2 = 10
-
   # Input dropout
   tensor = tf.nn.dropout(data, rate=dropouts[0], seed=seed)
 
   # Layer 1
   with tf.variable_scope('1-maxout'):
-    (tensor,W1) = units.maxout_layer(tensor, out_size=m1, ch_size=k1,
+    (tensor,W1) = units.maxout_layer(tensor, out_size=100, ch_size=20,
         seed=seed, return_W=True)
 
   # Dropout
@@ -42,7 +35,7 @@ def model(data, dropouts, seed=None):
 
   # Layer 2
   with tf.variable_scope('2-maxout'):
-    tensor = units.maxout_layer(tensor, out_size=m2, ch_size=k2, seed=seed)
+    tensor = units.maxout_layer(tensor, out_size=10, ch_size=5, seed=seed)
 
   logits = tf.identity(tensor, name='logits')
 
